@@ -1,0 +1,65 @@
+import { renderOrmocSlider, mountOrmocSlider } from '../components/ormoc-slider.js';
+import { continueWithGoogle } from '../lib/google-auth.js';
+
+const googleIcon = `
+  <svg class="btn-google-icon" viewBox="0 0 24 24" aria-hidden="true" width="18" height="18">
+    <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.4h6.4c-.3 1.5-1.1 2.7-2.4 3.6v3h3.9c2.3-2.1 3.6-5.2 3.6-8.7z"/>
+    <path fill="#34A853" d="M12 24c3.2 0 5.9-1.1 7.9-2.9l-3.9-3c-1.1.7-2.4 1.2-4 1.2-3.1 0-5.7-2.1-6.6-4.9H1.4v3.1C3.4 21.3 7.4 24 12 24z"/>
+    <path fill="#FBBC05" d="M5.4 14.4c-.2-.7-.4-1.4-.4-2.4s.1-1.7.4-2.4V6.5H1.4C.5 8.2 0 10 0 12s.5 3.8 1.4 5.5l4-3.1z"/>
+    <path fill="#EA4335" d="M12 4.8c1.7 0 3.3.6 4.5 1.8l3.4-3.4C17.9 1.2 15.2 0 12 0 7.4 0 3.4 2.7 1.4 6.5l4 3.1C6.3 6.9 8.9 4.8 12 4.8z"/>
+  </svg>
+`;
+
+export function renderHome() {
+  return `
+    <section class="welcome" aria-label="Welcome">
+      <div class="welcome-sky" aria-hidden="true">
+        <div class="welcome-orb welcome-orb--a"></div>
+        <div class="welcome-orb welcome-orb--b"></div>
+        <div class="welcome-orb welcome-orb--c"></div>
+      </div>
+
+      ${renderOrmocSlider()}
+
+      <div class="welcome-content">
+        <h1 class="welcome-headline">Your city, one tap away.</h1>
+        <p class="welcome-copy">Book local trips around Ormoc with a clean, fast ride experience.</p>
+        <div class="welcome-actions">
+          <a class="btn btn-primary" href="?page=signup" data-page="signup">Get started</a>
+          <a class="btn btn-ghost" href="?page=login" data-page="login">Sign in</a>
+          <button type="button" class="btn btn-google" id="welcome-google">
+            ${googleIcon}
+            <span>Continue with Google</span>
+          </button>
+        </div>
+        <p class="welcome-auth-error" id="welcome-auth-error" hidden></p>
+      </div>
+    </section>
+  `;
+}
+
+export function mountHome(root = document) {
+  const section = root.querySelector('.welcome') || document.querySelector('.welcome');
+  if (!section) return;
+  requestAnimationFrame(() => section.classList.add('is-ready'));
+  mountOrmocSlider(section);
+
+  const googleBtn = section.querySelector('#welcome-google');
+  const errorEl = section.querySelector('#welcome-auth-error');
+  if (!googleBtn || googleBtn.dataset.bound === '1') return;
+  googleBtn.dataset.bound = '1';
+
+  googleBtn.addEventListener('click', async () => {
+    if (errorEl) errorEl.hidden = true;
+    googleBtn.disabled = true;
+    try {
+      await continueWithGoogle();
+    } catch (err) {
+      if (errorEl) {
+        errorEl.hidden = false;
+        errorEl.textContent = err.message || 'Google sign-in failed.';
+      }
+      googleBtn.disabled = false;
+    }
+  });
+}

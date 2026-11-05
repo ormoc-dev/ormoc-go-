@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192" role="img" aria-label="OrmocGo">
+  <rect width="192" height="192" rx="36" fill="#2563eb"/>
+  <circle cx="96" cy="96" r="46" fill="none" stroke="#ffffff" stroke-width="12"/>
+  <circle cx="96" cy="96" r="14" fill="#ffffff"/>
+  <path d="M96 28v28M96 136v28M28 96h28M136 96h28" stroke="#7dd3fc" stroke-width="10" stroke-linecap="round"/>
+</svg>
