@@ -1,6 +1,6 @@
 /**
- * Loads `.env` on localhost / `.env.production` elsewhere.
- * Only put browser-safe values here (Supabase URL + anon key).
+ * Loads env for local (.env / .env.production) or Vercel (/api/config).
+ * Only browser-safe values (Supabase URL + anon/publishable key).
  */
 
 const defaults = {
@@ -54,20 +54,40 @@ function parseEnv(text) {
   return out;
 }
 
+async function loadFromApi() {
+  const res = await fetch('/api/config', { cache: 'no-store' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return { ...defaults, ...data };
+}
+
+async function loadFromEnvFile() {
+  const file = envFileForHost();
+  const res = await fetch(file, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return parseEnv(await res.text());
+}
+
 export async function loadEnv() {
   if (cache) return cache;
 
-  const file = envFileForHost();
   try {
-    const res = await fetch(file, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    cache = parseEnv(await res.text());
+    if (!isLocalHost(window.location.hostname)) {
+      cache = await loadFromApi();
+    } else {
+      cache = await loadFromEnvFile();
+    }
   } catch (err) {
-    console.warn(`[OrmocGo] Could not load ${file}, using defaults.`, err);
-    cache = { ...defaults };
+    try {
+      cache = await loadFromEnvFile();
+    } catch (fileErr) {
+      console.warn('[OrmocGo] Could not load env, using defaults.', err, fileErr);
+      cache = { ...defaults };
+    }
   }
 
-  cache.APP_URL = cache.APP_URL || window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '/');
+  cache.APP_URL = cache.APP_URL
+    || (window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '/'));
   window.__ORMOCGO_ENV__ = cache;
   return cache;
 }

@@ -6,7 +6,7 @@ export async function continueWithGoogle() {
     throw new Error('Supabase is not configured yet. Update .env / .env.production.');
   }
 
-  const redirectTo = new URL(window.location.href);
+  const redirectTo = new URL(window.location.origin + window.location.pathname);
   redirectTo.searchParams.set('page', 'home');
   redirectTo.hash = '';
 
@@ -20,6 +20,7 @@ export async function continueWithGoogle() {
       },
     },
   });
+
 
   if (error) throw error;
 }
