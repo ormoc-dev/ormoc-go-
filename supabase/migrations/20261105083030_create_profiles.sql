@@ -14,7 +14,8 @@ create table public.profiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint profiles_email_format check (
-    email is null or email ~* '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$'
+    email is null
+    or email ~* '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$'
   ),
   constraint profiles_phone_format check (
     phone is null or length(regexp_replace(phone, '[^0-9]', '', 'g')) between 10 and 15

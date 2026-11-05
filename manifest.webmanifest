@@ -2,7 +2,7 @@
   "id": "./index.html",
   "name": "OrmocGo",
   "short_name": "OrmocGo",
-  "description": "OrmocGo progressive web app",
+  "description": "Community city guide for Ormoc — local details, places, and helpful tools.",
   "version": "0.1.0",
   "start_url": "./index.html",
   "scope": "./",

@@ -1,4 +1,5 @@
 import { renderOrmocSlider, mountOrmocSlider } from '../components/ormoc-slider.js';
+import { renderBottomSheets, mountBottomSheets } from '../components/bottom-sheet.js';
 import { continueWithGoogle } from '../lib/google-auth.js';
 
 const googleIcon = `
@@ -22,8 +23,8 @@ export function renderHome() {
       ${renderOrmocSlider()}
 
       <div class="welcome-content">
-        <h1 class="welcome-headline">Your city, one tap away.</h1>
-        <p class="welcome-copy">Book local trips around Ormoc with a clean, fast ride experience.</p>
+        <h1 class="welcome-headline">Ormoc details, made simple.</h1>
+        <p class="welcome-copy">A community city guide for Ormocanos — places, local info, and helpful tools.</p>
         <div class="welcome-actions">
           <a class="btn btn-primary" href="?page=signup" data-page="signup">Get started</a>
           <a class="btn btn-ghost" href="?page=login" data-page="login">Sign in</a>
@@ -33,7 +34,16 @@ export function renderHome() {
           </button>
         </div>
         <p class="welcome-auth-error" id="welcome-auth-error" hidden></p>
+        <p class="welcome-legal">
+          <button type="button" class="legal-link" data-sheet="inside">What's inside</button>
+          <span class="legal-sep" aria-hidden="true">|</span>
+          <button type="button" class="legal-link" data-sheet="support">Support</button>
+          <span class="legal-sep" aria-hidden="true">|</span>
+          <button type="button" class="legal-link" data-sheet="terms">Terms &amp; Condition</button>
+        </p>
       </div>
+
+      ${renderBottomSheets()}
     </section>
   `;
 }
@@ -43,6 +53,7 @@ export function mountHome(root = document) {
   if (!section) return;
   requestAnimationFrame(() => section.classList.add('is-ready'));
   mountOrmocSlider(section);
+  mountBottomSheets(section);
 
   const googleBtn = section.querySelector('#welcome-google');
   const errorEl = section.querySelector('#welcome-auth-error');

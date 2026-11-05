@@ -12,7 +12,7 @@ const defaults = {
   SUPABASE_ANON_KEY: '',
   PWA_NAME: 'OrmocGo',
   PWA_SHORT_NAME: 'OrmocGo',
-  PWA_DESCRIPTION: 'OrmocGo progressive web app',
+  PWA_DESCRIPTION: 'Community city guide for Ormoc — local details, places, and helpful tools.',
   PWA_THEME_COLOR: '#2563eb',
   PWA_BACKGROUND_COLOR: '#ffffff',
   PWA_START_URL: './index.html',

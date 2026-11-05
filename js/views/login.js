@@ -1,5 +1,7 @@
 import { getSupabase } from '../supabase.js';
 import { goToPage } from '../lib/navigate.js';
+import { googleIconSvg, bindGoogleButton } from '../lib/google-button.js';
+import { passwordFieldHtml, bindPasswordToggles } from '../lib/password-field.js';
 
 export function renderLogin() {
   return `
@@ -7,35 +9,49 @@ export function renderLogin() {
       <div class="auth-sky" aria-hidden="true">
         <div class="auth-orb auth-orb--a"></div>
         <div class="auth-orb auth-orb--b"></div>
-        <div class="auth-glow"></div>
       </div>
 
       <div class="auth-panel">
-        <a class="auth-back" href="?page=home" data-page="home">Back</a>
+        <div class="auth-panel-inner">
+          <a class="auth-back" href="?page=home" data-page="home" aria-label="Back to welcome">
+            <span class="auth-back-icon" aria-hidden="true">←</span>
+            <span>Back</span>
+          </a>
 
-        <h1 class="auth-title">Welcome back</h1>
-        <p class="auth-copy">Sign in to continue booking rides around Ormoc.</p>
+          <p class="auth-eyebrow">Sign in</p>
+          <h1 class="auth-title">Welcome back</h1>
+          <p class="auth-copy">Continue exploring Ormoc details and local guides.</p>
 
-        <form class="auth-form" id="login-form" novalidate>
-          <label class="field">
-            <span>Email</span>
-            <input type="email" name="email" autocomplete="username" placeholder="you@email.com" required>
-          </label>
+          <form class="auth-form" id="login-form" novalidate>
+            <label class="field">
+              <span>Email</span>
+              <input type="email" name="email" autocomplete="username" placeholder="you@email.com" required>
+            </label>
 
-          <label class="field">
-            <span>Password</span>
-            <input type="password" name="password" autocomplete="current-password" placeholder="Your password" required>
-          </label>
+            ${passwordFieldHtml({
+              label: 'Password',
+              name: 'password',
+              placeholder: 'Your password',
+              autocomplete: 'current-password',
+            })}
 
-          <p class="form-error" id="login-error" hidden></p>
+            <p class="form-error" id="login-error" hidden></p>
 
-          <button class="btn btn-primary auth-submit" type="submit">Sign in</button>
-        </form>
+            <button class="btn btn-primary auth-submit" type="submit">Sign in</button>
+          </form>
 
-        <p class="auth-switch">
-          New here?
-          <a href="?page=signup" data-page="signup">Create an account</a>
-        </p>
+          <div class="auth-divider" aria-hidden="true"><span>or</span></div>
+
+          <button type="button" class="btn btn-google" id="login-google">
+            ${googleIconSvg}
+            <span>Continue with Google</span>
+          </button>
+
+          <p class="auth-switch">
+            New here?
+            <a href="?page=signup" data-page="signup">Create an account</a>
+          </p>
+        </div>
       </div>
     </section>
   `;
@@ -44,6 +60,9 @@ export function renderLogin() {
 export function mountLogin(root = document) {
   const section = root.querySelector('.auth') || document.querySelector('.auth');
   if (section) requestAnimationFrame(() => section.classList.add('is-ready'));
+
+  bindPasswordToggles(root);
+  bindGoogleButton(root, 'login-google', 'login-error');
 
   const form = root.querySelector('#login-form') || document.getElementById('login-form');
   if (!form || form.dataset.bound === '1') return;
