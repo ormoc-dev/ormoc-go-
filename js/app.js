@@ -2,6 +2,7 @@ import { getAppName, routes, defaultPage } from './config.js';
 import { getEnv, loadEnv } from './env.js';
 import { applyPwaMeta, registerServiceWorker } from './pwa.js';
 import { getSupabase } from './supabase.js';
+import { goToPage } from './lib/navigate.js';
 import { renderHeader } from './components/header.js';
 import { renderFooter } from './components/footer.js';
 import { renderSidebar, bindSidebar } from './components/sidebar.js';
@@ -12,6 +13,8 @@ const footerSlot = document.getElementById('footer-slot');
 const sidebarSlot = document.getElementById('sidebar-slot');
 
 const loadedStyles = new Set();
+let authBound = false;
+let renderToken = 0;
 
 function resolvePage() {
   const params = new URLSearchParams(window.location.search);
@@ -34,7 +37,24 @@ function ensureStyles(paths = []) {
   });
 }
 
-function loadChrome(hideChrome) {
+function bindChromeSignOut(root) {
+  root.querySelectorAll('[data-signout]').forEach((btn) => {
+    if (btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        const supabase = await getSupabase();
+        if (supabase) await supabase.auth.signOut();
+        goToPage('home');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+function loadChrome(hideChrome, session = null) {
   if (hideChrome) {
     headerSlot.innerHTML = '';
     footerSlot.innerHTML = '';
@@ -45,16 +65,12 @@ function loadChrome(hideChrome) {
 
   document.body.classList.remove('no-chrome');
 
-  if (!sidebarSlot.dataset.loaded) {
-    sidebarSlot.innerHTML = renderSidebar();
-    sidebarSlot.dataset.loaded = '1';
-    bindSidebar(sidebarSlot);
-  }
+  sidebarSlot.innerHTML = renderSidebar(session);
+  bindSidebar(sidebarSlot);
+  bindChromeSignOut(sidebarSlot);
 
-  if (!headerSlot.dataset.loaded) {
-    headerSlot.innerHTML = renderHeader();
-    headerSlot.dataset.loaded = '1';
-  }
+  headerSlot.innerHTML = renderHeader(session);
+  bindChromeSignOut(headerSlot);
 
   if (!footerSlot.dataset.loaded) {
     footerSlot.innerHTML = renderFooter();
@@ -68,21 +84,62 @@ function setActiveNav(active) {
   });
 }
 
-function render() {
+async function getSession() {
+  const supabase = await getSupabase();
+  if (!supabase) return null;
+  const { data } = await supabase.auth.getSession();
+  return data.session;
+}
+
+async function render() {
+  const token = ++renderToken;
   const pageKey = resolvePage();
   const route = routes[pageKey] || routes['404'];
+  const session = await getSession();
+  if (token !== renderToken) return;
+
+  // Signed-in users should land on the home dashboard, not auth sheets.
+  if (session && (pageKey === 'login' || pageKey === 'signup')) {
+    goToPage('home');
+    return;
+  }
+
+  const hideChrome = typeof route.hideChrome === 'function'
+    ? Boolean(route.hideChrome(session))
+    : Boolean(route.hideChrome);
 
   document.title = `${route.title} · ${getAppName()}`;
   ensureStyles(route.css || []);
-  loadChrome(Boolean(route.hideChrome));
+  loadChrome(hideChrome, session);
   setActiveNav(route.active || '');
 
   app.innerHTML = route.render();
   if (typeof route.mount === 'function') {
-    route.mount(app);
+    await route.mount(app);
   }
 
-  document.dispatchEvent(new CustomEvent('ormocgo:page', { detail: { page: pageKey } }));
+  // Home mount may switch into the dashboard and need chrome.
+  if (pageKey === 'home' && session) {
+    loadChrome(false, session);
+    setActiveNav('home');
+    document.title = `Dashboard · ${getAppName()}`;
+  }
+
+  document.dispatchEvent(new CustomEvent('ormocgo:page', { detail: { page: pageKey, session } }));
+}
+
+function bindAuthListener() {
+  if (authBound) return;
+  authBound = true;
+
+  getSupabase().then((supabase) => {
+    if (!supabase) return;
+    supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+        render();
+      }
+    });
+  });
 }
 
 window.addEventListener('popstate', render);
@@ -105,7 +162,8 @@ async function boot() {
   applyPwaMeta();
   registerServiceWorker();
   await getSupabase();
-  render();
+  bindAuthListener();
+  await render();
 }
 
 boot();

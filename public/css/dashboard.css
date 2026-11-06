@@ -1,0 +1,128 @@
+.dashboard {
+  max-width: 960px;
+  margin: 0 auto;
+  animation: dashboard-in 420ms ease both;
+}
+
+@keyframes dashboard-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dashboard-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.75rem;
+}
+
+.dashboard-identity {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.dashboard-avatar {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--brand-ink);
+  background: linear-gradient(145deg, var(--brand) 0%, #1d4ed8 100%);
+}
+
+.dashboard-eyebrow {
+  margin: 0 0 0.2rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dashboard-title {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.55rem, 3vw, 2.1rem);
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.dashboard-copy {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.dashboard-signout {
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--brand-deep);
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.dashboard-tile {
+  margin: 0;
+  padding: 1.15rem 1.2rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface) 88%, #e8f4ff);
+  box-shadow: var(--shadow);
+}
+
+.dashboard-tile h2 {
+  margin: 0 0 0.45rem;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: -0.02em;
+}
+
+.dashboard-tile p {
+  margin: 0 0 0.9rem;
+  color: var(--muted);
+  line-height: 1.45;
+  font-size: 0.95rem;
+}
+
+.dashboard-tile-note {
+  display: inline-block;
+  color: var(--brand-deep);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.page-loading {
+  display: grid;
+  place-items: center;
+  min-height: 40vh;
+  color: var(--muted);
+}
+
+@media (max-width: 800px) {
+  .dashboard-hero {
+    flex-direction: column;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}

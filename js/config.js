@@ -8,10 +8,15 @@ export const APP_BASE = '.';
 /** JS view modules — pages are rendered in JS, not HTML view files. */
 export const routes = {
   home: {
-    title: 'Welcome',
+    title: 'Home',
     active: 'home',
-    hideChrome: true,
-    css: ['public/css/home.css', 'public/css/auth/auth.css'],
+    // Welcome landing is full-bleed; signed-in dashboard uses chrome.
+    hideChrome: (session) => !session,
+    css: [
+      'public/css/home.css',
+      'public/css/auth/auth.css',
+      'public/css/dashboard.css',
+    ],
     render: renderHome,
     mount: mountHome,
   },
@@ -19,7 +24,11 @@ export const routes = {
     title: 'Sign in',
     active: 'home',
     hideChrome: true,
-    css: ['public/css/home.css', 'public/css/auth/auth.css'],
+    css: [
+      'public/css/home.css',
+      'public/css/auth/auth.css',
+      'public/css/dashboard.css',
+    ],
     render: renderHome,
     mount: (root) => mountHome(root, { openSheet: 'login' }),
   },
@@ -27,7 +36,11 @@ export const routes = {
     title: 'Sign up',
     active: 'home',
     hideChrome: true,
-    css: ['public/css/home.css', 'public/css/auth/auth.css'],
+    css: [
+      'public/css/home.css',
+      'public/css/auth/auth.css',
+      'public/css/dashboard.css',
+    ],
     render: renderHome,
     mount: (root) => mountHome(root, { openSheet: 'signup' }),
   },

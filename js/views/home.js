@@ -1,6 +1,8 @@
 import { renderOrmocSlider, mountOrmocSlider } from '../components/ormoc-slider.js';
 import { renderBottomSheets, mountBottomSheets } from '../components/bottom-sheet.js';
 import { continueWithGoogle } from '../lib/google-auth.js';
+import { getSupabase } from '../supabase.js';
+import { renderDashboard, mountDashboard } from './dashboard.js';
 
 const googleIcon = `
   <svg class="btn-google-icon" viewBox="0 0 24 24" aria-hidden="true" width="18" height="18">
@@ -11,7 +13,7 @@ const googleIcon = `
   </svg>
 `;
 
-export function renderHome() {
+function renderWelcome() {
   return `
     <section class="welcome" aria-label="Welcome">
       <div class="welcome-sky" aria-hidden="true">
@@ -48,7 +50,11 @@ export function renderHome() {
   `;
 }
 
-export function mountHome(root = document, { openSheet = null } = {}) {
+export function renderHome() {
+  return `<div class="page-loading" role="status">Loading…</div>`;
+}
+
+function mountWelcome(root, { openSheet = null } = {}) {
   const section = root.querySelector('.welcome') || document.querySelector('.welcome');
   if (!section) return;
   requestAnimationFrame(() => section.classList.add('is-ready'));
@@ -73,4 +79,27 @@ export function mountHome(root = document, { openSheet = null } = {}) {
       googleBtn.disabled = false;
     }
   });
+}
+
+export async function mountHome(root = document, { openSheet = null } = {}) {
+  const supabase = await getSupabase();
+  let session = null;
+
+  if (supabase) {
+    const { data } = await supabase.auth.getSession();
+    session = data.session;
+  }
+
+  if (session?.user) {
+    root.innerHTML = renderDashboard(session.user);
+    document.title = `Dashboard · OrmocGo`;
+    document.body.classList.remove('no-chrome');
+    mountDashboard(root);
+    document.dispatchEvent(new CustomEvent('ormocgo:auth', { detail: { session } }));
+    return;
+  }
+
+  root.innerHTML = renderWelcome();
+  mountWelcome(root, { openSheet });
+  document.dispatchEvent(new CustomEvent('ormocgo:auth', { detail: { session: null } }));
 }

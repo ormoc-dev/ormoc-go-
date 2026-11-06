@@ -1,7 +1,9 @@
 import { getAppName } from '../env.js';
 
-export function renderSidebar() {
+export function renderSidebar(session = null) {
   const name = getAppName();
+  const signedIn = Boolean(session?.user);
+
   return `
     <aside class="sidebar" id="sidebar" aria-label="Sidebar">
       <div class="sidebar-brand">
@@ -10,8 +12,12 @@ export function renderSidebar() {
       </div>
       <nav class="sidebar-nav">
         <a href="?page=home" data-page="home" data-nav="home">Dashboard</a>
-        <a href="?page=login" data-page="login" data-nav="login">Sign in</a>
-        <a href="?page=signup" data-page="signup" data-nav="signup">Sign up</a>
+        ${signedIn
+          ? '<button type="button" class="btn btn-ghost sidebar-signout" data-signout>Sign out</button>'
+          : `
+            <a href="?page=login" data-page="login" data-nav="login">Sign in</a>
+            <a href="?page=signup" data-page="signup" data-nav="signup">Sign up</a>
+          `}
       </nav>
       <button type="button" class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle sidebar">Menu</button>
     </aside>
