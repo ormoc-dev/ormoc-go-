@@ -1,8 +1,18 @@
-import { getAppName } from '../env.js';
+import { getAppName, getEnv } from '../env.js';
 import { getSupabase } from '../supabase.js';
 import { goToPage } from './navigate.js';
 import { googleIconSvg, bindGoogleButton } from './google-button.js';
 import { passwordFieldHtml, bindPasswordToggles } from './password-field.js';
+
+function emailConfirmRedirect() {
+  const configured = (getEnv().APP_URL || '').trim();
+  const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(configured);
+  const base = (!configured || isLocal) ? 'https://ormoc-go.vercel.app' : configured;
+  const url = new URL(base);
+  url.searchParams.set('page', 'home');
+  url.hash = '';
+  return url.toString();
+}
 
 export function loginFormHtml() {
   return `
@@ -222,6 +232,7 @@ export function bindSignupForm(root = document) {
         password,
         options: {
           data: { full_name: fullName },
+          emailRedirectTo: emailConfirmRedirect(),
         },
       });
 
