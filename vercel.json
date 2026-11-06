@@ -1,10 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "version": 2,
+  "framework": null,
+  "installCommand": "echo skip-install",
+  "buildCommand": "rm -rf dist && mkdir -p dist && cp index.html offline.html sw.js manifest.webmanifest dist/ && cp -r js public dist/",
+  "outputDirectory": "dist",
   "cleanUrls": true,
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" }
-  ],
   "headers": [
     {
       "source": "/sw.js",
