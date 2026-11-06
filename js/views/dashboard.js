@@ -12,6 +12,8 @@ import {
   ORMOC_CENTER,
   MAP_LAYERS,
   getLayerPreviewBackground,
+  fetchGooglePlacePhotoUrl,
+  loadGoogleMaps,
 } from '../lib/ormoc-map.js';
 import {
   listSavedPlaces,
@@ -798,10 +800,23 @@ function starsMarkup(rating) {
 function renderTouristRail() {
   const cards = TOURIST_SPOTS.map((spot) => {
     const saved = isPlaceSaved(spot);
+    const preview = spot.image || '';
     return `
     <article class="tourist-card${saved ? ' is-saved' : ''}" data-tourist-id="${escapeHtml(spot.id)}">
+      <div class="tourist-card-media" aria-hidden="true">
+        <img
+          class="tourist-card-img"
+          data-tourist-photo="${escapeHtml(spot.id)}"
+          data-fallback-src="${escapeHtml(preview)}"
+          src="${escapeHtml(preview)}"
+          alt=""
+          loading="lazy"
+          decoding="async"
+          referrerpolicy="no-referrer-when-downgrade"
+          onerror="if(this.dataset.fallbackSrc&&this.src!==this.dataset.fallbackSrc){this.src=this.dataset.fallbackSrc}else{this.onerror=null;this.classList.add('is-broken')}"
+        >
+      </div>
       <button type="button" class="tourist-card-main" data-tourist-open="${escapeHtml(spot.id)}" aria-label="${escapeHtml(spot.name)}, ${spot.rating} stars">
-        <img class="tourist-card-img" src="${escapeHtml(spot.image)}" alt="" loading="lazy" decoding="async">
         <span class="tourist-card-body">
           <span class="tourist-card-cat">${escapeHtml(spot.category)}</span>
           <strong class="tourist-card-name">${escapeHtml(spot.name)}</strong>
@@ -831,11 +846,12 @@ function renderTouristRail() {
       <div class="tourist-welcome" aria-hidden="true">
         <img
           class="tourist-welcome-mascot"
-          src="public/assets/icons/welcome-chibi.png?v=3"
+          src="public/assets/icons/welcome-chibi.webp"
           alt=""
           width="140"
-          height="140"
+          height="258"
           decoding="async"
+          draggable="false"
         >
       </div>
       <div class="tourist-rail" id="tourist-rail" aria-label="Tourist spots">
@@ -1098,6 +1114,31 @@ export function mountDashboard(root = document) {
 
   const touristRail = shell.querySelector('#tourist-rail');
 
+  async function hydrateTouristPhotos() {
+    if (!touristRail) return;
+    try {
+      await loadGoogleMaps();
+    } catch (_) {
+      return;
+    }
+
+    await Promise.all(TOURIST_SPOTS.map(async (spot) => {
+      const img = touristRail.querySelector(`[data-tourist-photo="${spot.id}"]`);
+      if (!img) return;
+      try {
+        const url = await fetchGooglePlacePhotoUrl(spot, { maxWidth: 640 });
+        const fallback = img.dataset.fallbackSrc || spot.image || '';
+        // Only swap in Google photos (not Street View Static / empty).
+        if (!url || url === fallback) return;
+        if (url.includes('maps.googleapis.com/maps/api/streetview')) return;
+        if (img.getAttribute('src') === url) return;
+        img.src = url;
+      } catch (_) {
+        /* keep local preview */
+      }
+    }));
+  }
+
   function syncTouristSaveButtons() {
     if (!touristRail) return;
     touristRail.querySelectorAll('[data-tourist-id]').forEach((card) => {
@@ -1115,6 +1156,8 @@ export function mountDashboard(root = document) {
       }
     });
   }
+
+  hydrateTouristPhotos();
 
   if (touristRail) {
     touristRail.addEventListener('click', async (event) => {

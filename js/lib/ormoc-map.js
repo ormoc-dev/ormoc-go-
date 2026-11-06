@@ -278,6 +278,112 @@ export function getStreetViewEmbedUrl(place) {
   );
 }
 
+/** Street View Static image of the area (simple <img> URL). */
+export function getStreetViewStaticUrl(place, { width = 640, height = 360 } = {}) {
+  const key = getMapsApiKey();
+  const lat = Number(place.lat);
+  const lon = Number(place.lon);
+  if (!key || !Number.isFinite(lat) || !Number.isFinite(lon)) return '';
+  const size = `${Math.min(640, Math.max(80, width))}x${Math.min(640, Math.max(80, height))}`;
+  return (
+    'https://maps.googleapis.com/maps/api/streetview'
+    + `?size=${encodeURIComponent(size)}`
+    + `&location=${encodeURIComponent(`${lat},${lon}`)}`
+    + '&fov=80&pitch=0&radius=120'
+    + `&key=${encodeURIComponent(key)}`
+  );
+}
+
+const placePhotoCache = new Map();
+
+/**
+ * Fetch a Google Places photo URL for a named spot near lat/lon.
+ * Returns '' when Places has no usable photo (caller should keep its own fallback image).
+ */
+export async function fetchGooglePlacePhotoUrl(place, { maxWidth = 640 } = {}) {
+  const name = String(place?.name || '').trim();
+  const lat = Number(place?.lat);
+  const lon = Number(place?.lon);
+  const cacheKey = `${name}|${lat}|${lon}|${maxWidth}`;
+  if (placePhotoCache.has(cacheKey)) return placePhotoCache.get(cacheKey);
+
+  try {
+    const maps = await loadGoogleMaps();
+    if (!maps?.places?.PlacesService || !name) {
+      placePhotoCache.set(cacheKey, '');
+      return '';
+    }
+
+    const attribution = document.createElement('div');
+    const service = new maps.places.PlacesService(attribution);
+    const location = (Number.isFinite(lat) && Number.isFinite(lon))
+      ? new maps.LatLng(lat, lon)
+      : null;
+
+    const candidates = await new Promise((resolve) => {
+      const finish = (results, status) => {
+        if (status === maps.places.PlacesServiceStatus.OK && results?.length) resolve(results);
+        else resolve([]);
+      };
+
+      // textSearch usually returns photos; bias near the spot when possible.
+      const request = {
+        query: `${name}, Ormoc City, Leyte, Philippines`,
+      };
+      if (location) {
+        request.location = location;
+        request.radius = 12000;
+      }
+      service.textSearch(request, finish);
+    });
+
+    let best = candidates[0];
+    if (location && candidates.length > 1) {
+      // Prefer the nearest match with photos.
+      best = candidates
+        .map((item) => {
+          const p = item.geometry?.location;
+          const d = p
+            ? maps.geometry?.spherical?.computeDistanceBetween?.(location, p)
+              ?? ((Number(p.lat()) - lat) ** 2 + (Number(p.lng()) - lon) ** 2)
+            : Number.POSITIVE_INFINITY;
+          return { item, d, hasPhotos: Boolean(item.photos?.length) };
+        })
+        .sort((a, b) => Number(b.hasPhotos) - Number(a.hasPhotos) || a.d - b.d)[0]?.item
+        || best;
+    }
+
+    const photo = best?.photos?.[0];
+    if (photo && typeof photo.getUrl === 'function') {
+      const url = photo.getUrl({ maxWidth });
+      placePhotoCache.set(cacheKey, url);
+      return url;
+    }
+
+    if (best?.place_id) {
+      const detailPhoto = await new Promise((resolve) => {
+        service.getDetails({
+          placeId: best.place_id,
+          fields: ['photos'],
+        }, (detail, status) => {
+          if (status === maps.places.PlacesServiceStatus.OK && detail?.photos?.[0]) {
+            resolve(detail.photos[0].getUrl({ maxWidth }));
+          } else resolve('');
+        });
+      });
+      if (detailPhoto) {
+        placePhotoCache.set(cacheKey, detailPhoto);
+        return detailPhoto;
+      }
+    }
+  } catch (_) {
+    /* caller keeps fallback image */
+  }
+
+  placePhotoCache.set(cacheKey, '');
+  return '';
+}
+
 let mapsPromise = null;
 
 function getMapsApiKey() {
@@ -307,11 +413,12 @@ export function loadGoogleMaps() {
     };
 
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&callback=${callbackName}&v=weekly`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places&callback=${callbackName}&v=weekly`;
     script.async = true;
     script.defer = true;
     script.onerror = () => {
       delete window[callbackName];
+      mapsPromise = null;
       reject(new Error('Could not load Google Maps'));
     };
     document.head.appendChild(script);
