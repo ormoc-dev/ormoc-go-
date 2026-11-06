@@ -24,17 +24,52 @@ function resolvePage() {
   return routes[page] ? page : '404';
 }
 
+function waitForStylesheet(link) {
+  return new Promise((resolve) => {
+    if (link.sheet) {
+      resolve();
+      return;
+    }
+    link.addEventListener('load', () => resolve(), { once: true });
+    link.addEventListener('error', () => resolve(), { once: true });
+  });
+}
+
 function ensureStyles(paths = []) {
   const version = encodeURIComponent(getEnv().APP_VERSION || '0.1.1');
+  const pending = [];
+
   paths.forEach((href) => {
     const busted = `${href}?v=${version}`;
     if (loadedStyles.has(busted)) return;
+
+    // Prefer a stylesheet already linked in index.html (avoids FOUC on reload).
+    const existing = document.querySelector(`link[rel="stylesheet"][href^="${href}"]`);
+    if (existing) {
+      loadedStyles.add(busted);
+      pending.push(waitForStylesheet(existing));
+      return;
+    }
+
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = busted;
     document.head.appendChild(link);
     loadedStyles.add(busted);
+    pending.push(waitForStylesheet(link));
   });
+
+  return Promise.all(pending);
+}
+
+function hideBootSplash() {
+  const splash = document.getElementById('boot-splash');
+  document.body.classList.remove('is-booting');
+  if (!splash || splash.hidden) return;
+  splash.classList.add('is-done');
+  window.setTimeout(() => {
+    splash.hidden = true;
+  }, 200);
 }
 
 function bindChromeSignOut(root) {
@@ -109,7 +144,9 @@ async function render() {
     : Boolean(route.hideChrome);
 
   document.title = `${route.title} · ${getAppName()}`;
-  ensureStyles(route.css || []);
+  await ensureStyles(route.css || []);
+  if (token !== renderToken) return;
+
   loadChrome(hideChrome, session);
   setActiveNav(route.active || '');
 
@@ -117,14 +154,13 @@ async function render() {
   if (typeof route.mount === 'function') {
     await route.mount(app);
   }
+  if (token !== renderToken) return;
 
-  // Home mount may switch into the dashboard and need chrome.
   if (pageKey === 'home' && session) {
-    loadChrome(false, session);
-    setActiveNav('home');
-    document.title = `Dashboard · ${getAppName()}`;
+    document.title = `Map · ${getAppName()}`;
   }
 
+  hideBootSplash();
   document.dispatchEvent(new CustomEvent('ormocgo:page', { detail: { page: pageKey, session } }));
 }
 
@@ -158,12 +194,20 @@ document.addEventListener('click', (e) => {
 });
 
 async function boot() {
-  await loadEnv();
-  applyPwaMeta();
-  registerServiceWorker();
-  await getSupabase();
-  bindAuthListener();
-  await render();
+  try {
+    await loadEnv();
+    applyPwaMeta();
+    registerServiceWorker();
+    await getSupabase();
+    bindAuthListener();
+    await render();
+  } catch (err) {
+    console.error('[OrmocGo] Boot failed', err);
+    hideBootSplash();
+    if (app && !app.innerHTML) {
+      app.innerHTML = '<div class="page-loading">Could not load OrmocGo. Please refresh.</div>';
+    }
+  }
 }
 
 boot();

@@ -22,6 +22,10 @@ export default function handler(req, res) {
       process.env.SUPABASE_ANON_KEY
       || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
       || '',
+    GOOGLE_MAPS_API_KEY:
+      process.env.GOOGLE_MAPS_API_KEY
+      || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+      || '',
     PWA_NAME: process.env.PWA_NAME || 'OrmocGo',
     PWA_SHORT_NAME: process.env.PWA_SHORT_NAME || 'OrmocGo',
     PWA_DESCRIPTION:

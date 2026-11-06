@@ -10,8 +10,8 @@ export const routes = {
   home: {
     title: 'Home',
     active: 'home',
-    // Welcome landing is full-bleed; signed-in dashboard uses chrome.
-    hideChrome: (session) => !session,
+    // Welcome + signed-in map shell are both full-bleed (no sidebar/topbar).
+    hideChrome: true,
     css: [
       'public/css/home.css',
       'public/css/auth/auth.css',

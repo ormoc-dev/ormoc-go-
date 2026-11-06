@@ -25,6 +25,16 @@ function renderWelcome() {
       ${renderOrmocSlider()}
 
       <div class="welcome-content">
+        <div class="welcome-guide" aria-hidden="true">
+          <img
+            class="welcome-guide-mascot"
+            src="public/assets/icons/welcome-guide-chibi.png?v=2"
+            alt=""
+            width="120"
+            height="120"
+            decoding="async"
+          >
+        </div>
         <h1 class="welcome-headline">Ormoc details, made simple.</h1>
         <p class="welcome-copy">A community city guide for Ormocanos and tourists — places, local info, and helpful tools.</p>
         <div class="welcome-actions">
@@ -92,8 +102,8 @@ export async function mountHome(root = document, { openSheet = null } = {}) {
 
   if (session?.user) {
     root.innerHTML = renderDashboard(session.user);
-    document.title = `Dashboard · OrmocGo`;
-    document.body.classList.remove('no-chrome');
+    document.title = 'Map · OrmocGo';
+    document.body.classList.add('no-chrome');
     mountDashboard(root);
     document.dispatchEvent(new CustomEvent('ormocgo:auth', { detail: { session } }));
     return;

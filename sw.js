@@ -25,6 +25,7 @@ const PRECACHE = [
   './js/pwa.js',
   './js/supabase.js',
   './js/lib/navigate.js',
+  './js/lib/ormoc-map.js',
   './js/lib/google-auth.js',
   './js/lib/google-button.js',
   './js/lib/password-field.js',

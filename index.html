@@ -29,8 +29,34 @@
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Sora:wght@600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="public/css/layout/theme.css">
   <link rel="stylesheet" href="public/css/app.css">
+  <link rel="stylesheet" href="public/css/home.css">
+  <link rel="stylesheet" href="public/css/auth/auth.css">
+  <link rel="stylesheet" href="public/css/dashboard.css">
+  <style>
+    .boot-splash {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 12% 0%, #d9efff 0%, transparent 42%),
+        linear-gradient(180deg, #eef7ff 0%, #f3f9ff 55%, #ffffff 100%);
+      color: #5b7390;
+      font-family: Figtree, sans-serif;
+      transition: opacity 180ms ease;
+    }
+    .boot-splash.is-done {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .boot-splash[hidden] {
+      display: none !important;
+    }
+  </style>
 </head>
-<body class="app-shell">
+<body class="app-shell is-booting">
+  <div class="boot-splash" id="boot-splash" role="status" aria-live="polite">Loading OrmocGo…</div>
   <div id="sidebar-slot"></div>
   <div class="app-main">
     <div id="header-slot"></div>
