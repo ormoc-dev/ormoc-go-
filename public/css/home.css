@@ -136,13 +136,16 @@ body:has(.welcome) {
 
 .ormoc-slider-brand {
   position: absolute;
-  left: 1.25rem;
+  top: auto;
+  left: 1.15rem;
+  right: auto;
   bottom: 2.15rem;
   z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  max-width: calc(100% - 2.5rem);
+  width: auto;
+  max-width: calc(100% - 2.3rem);
   pointer-events: none;
 }
 
@@ -178,10 +181,14 @@ body:has(.welcome) {
   z-index: 1;
   flex: 0 0 auto;
   width: 100%;
+  min-height: min(40dvh, 300px);
   text-align: left;
-  padding: 1.15rem 1.35rem calc(1.35rem + env(safe-area-inset-bottom, 0px));
+  padding: 1.45rem 1.35rem calc(1.7rem + env(safe-area-inset-bottom, 0px));
   margin: 0;
   background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .welcome-mark {
@@ -199,18 +206,37 @@ body:has(.welcome) {
 }
 
 .welcome-brand {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.15rem;
   margin: 0;
-  font-family: var(--font-display);
-  font-size: clamp(1.9rem, 8vw, 2.6rem);
-  font-weight: 700;
-  letter-spacing: -0.05em;
-  line-height: 0.95;
-  color: #ffffff;
-  text-shadow:
-    0 2px 18px rgba(15, 39, 68, 0.45),
-    0 1px 2px rgba(15, 39, 68, 0.35);
   opacity: 0;
   transform: translateY(14px);
+}
+
+.welcome-brand-img {
+  display: block;
+  width: min(38vw, 112px);
+  height: auto;
+  border-radius: 0;
+  background: transparent;
+  object-fit: contain;
+  object-position: left center;
+  box-shadow: none;
+}
+
+.welcome-brand-go {
+  flex: 0 0 auto;
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 5.5vw, 1.65rem);
+  font-weight: 700;
+  letter-spacing: -0.05em;
+  line-height: 1;
+  color: #ffffff;
+  text-shadow:
+    0 2px 14px rgba(15, 39, 68, 0.45),
+    0 1px 2px rgba(15, 39, 68, 0.35);
 }
 
 .welcome-headline {
@@ -314,6 +340,10 @@ body:has(.welcome) {
   transform: translateY(110%);
   transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
   overflow: auto;
+}
+
+.sheet-panel.is-auth {
+  max-height: min(92dvh, 720px);
 }
 
 .sheet-root.is-open .sheet-backdrop {
@@ -528,16 +558,22 @@ body.sheet-open {
     margin-bottom: 0.45rem;
   }
 
-  .welcome-brand {
-    font-size: 1.85rem;
+  .welcome-brand-img {
+    width: min(34vw, 100px);
+  }
+
+  .welcome-brand-go {
+    font-size: 1.35rem;
   }
 
   .ormoc-slider-brand {
     bottom: 1.85rem;
+    left: 1rem;
   }
 
   .welcome-content {
-    padding: 0.9rem 1.2rem calc(1.1rem + env(safe-area-inset-bottom, 0px));
+    min-height: min(36dvh, 260px);
+    padding: 1.15rem 1.2rem calc(1.35rem + env(safe-area-inset-bottom, 0px));
   }
 
   .welcome-headline {
@@ -562,14 +598,10 @@ body.sheet-open {
     max-width: 680px;
   }
 
-  .ormoc-slider-brand,
-  .ormoc-dots,
-  .welcome-content {
-    padding-left: 1.75rem;
-  }
-
   .ormoc-slider-brand {
+    bottom: 2.15rem;
     left: 1.75rem;
+    right: auto;
   }
 
   .ormoc-dots {
@@ -577,7 +609,8 @@ body.sheet-open {
   }
 
   .welcome-content {
-    padding: 1.4rem 1.75rem calc(1.6rem + env(safe-area-inset-bottom, 0px));
+    min-height: min(38dvh, 320px);
+    padding: 1.6rem 1.75rem calc(1.85rem + env(safe-area-inset-bottom, 0px));
   }
 
   .welcome-mark {
@@ -585,8 +618,12 @@ body.sheet-open {
     height: 72px;
   }
 
-  .welcome-brand {
-    font-size: 2.8rem;
+  .welcome-brand-img {
+    width: min(32vw, 128px);
+  }
+
+  .welcome-brand-go {
+    font-size: 1.7rem;
   }
 
   .welcome-headline {

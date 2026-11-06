@@ -1,9 +1,6 @@
-import { getAppName } from '../env.js';
 import { ormocSlides } from '../data/ormoc-slides.js';
 
 export function renderOrmocSlider() {
-  const name = getAppName();
-
   const slides = ormocSlides
     .map(
       (slide, index) => `
@@ -34,15 +31,18 @@ export function renderOrmocSlider() {
       </div>
       <div class="ormoc-slider-fade" aria-hidden="true"></div>
 
-      <div class="ormoc-slider-brand">
-        <img
-          src="public/assets/icons/logo.jpg"
-          alt=""
-          class="welcome-mark"
-          width="88"
-          height="88"
-        >
-        <p class="welcome-brand">${name}</p>
+      <div class="ormoc-slider-brand" style="position:absolute;top:auto;left:1.15rem;right:auto;bottom:2.15rem;z-index:2;display:flex;flex-direction:column;align-items:flex-start;gap:0;pointer-events:none;">
+        <div class="welcome-brand" aria-label="OrmocGo" style="display:flex;flex-direction:row;align-items:center;gap:0.15rem;margin:0;">
+          <img
+            src="public/assets/icons/ormoc_banner.png"
+            alt=""
+            class="welcome-brand-img"
+            width="112"
+            height="26"
+            style="width:112px;max-width:38vw;height:auto;display:block;background:transparent;border:0;box-shadow:none;"
+          >
+          <span class="welcome-brand-go" style="color:#fff;font-weight:700;font-size:1.55rem;line-height:1;letter-spacing:-0.05em;">Go</span>
+        </div>
       </div>
 
       <div class="ormoc-dots" role="tablist" aria-label="Slide controls">

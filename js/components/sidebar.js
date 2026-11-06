@@ -5,7 +5,7 @@ export function renderSidebar() {
   return `
     <aside class="sidebar" id="sidebar" aria-label="Sidebar">
       <div class="sidebar-brand">
-        <img src="public/assets/icons/logo.jpg" alt="${name}" class="brand-logo" width="40" height="40">
+        <img src="public/assets/icons/logo.png" alt="${name}" class="brand-logo" width="40" height="40">
         <span>${name}</span>
       </div>
       <nav class="sidebar-nav">

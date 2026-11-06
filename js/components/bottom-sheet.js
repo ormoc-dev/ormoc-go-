@@ -1,3 +1,10 @@
+import {
+  loginFormHtml,
+  signupFormHtml,
+  bindLoginForm,
+  bindSignupForm,
+} from '../lib/auth-forms.js';
+
 export function renderBottomSheets() {
   return `
     <div class="sheet-root" id="sheet-root" hidden>
@@ -17,8 +24,9 @@ export function renderBottomSheets() {
 const sheets = {
   inside: {
     title: "What's inside",
+    auth: false,
     html: `
-      <p class="sheet-lead">OrmocGo is a city guide for Ormocanos.</p>
+      <p class="sheet-lead">OrmocGo is a city guide for Ormocanos and tourists.</p>
       <ul class="sheet-list">
         <li><strong>Discover Ormoc</strong> — Explore places, local shops, and must-try food spots around the city.</li>
         <li><strong>Get Around</strong> — Helpful details for local transport and finding your way in Ormoc.</li>
@@ -31,6 +39,7 @@ const sheets = {
   },
   support: {
     title: 'Support',
+    auth: false,
     html: `
       <p class="sheet-lead">Need help with OrmocGo?</p>
       <a class="sheet-email" href="mailto:anthony.capuyan23@gmail.com">anthony.capuyan23@gmail.com</a>
@@ -42,6 +51,7 @@ const sheets = {
   },
   terms: {
     title: 'Terms & Condition',
+    auth: false,
     html: `
       <p>OrmocGo provides local information and community tools for Ormoc.</p>
       <p>You agree to use the app respectfully and lawfully. You are responsible for the accuracy of your account details.</p>
@@ -50,46 +60,89 @@ const sheets = {
       <p>For concerns, contact anthony.capuyan23@gmail.com.</p>
     `,
   },
+  login: {
+    title: 'Sign in',
+    auth: true,
+    html: () => loginFormHtml(),
+  },
+  signup: {
+    title: 'Create account',
+    auth: true,
+    html: () => signupFormHtml(),
+  },
 };
 
-export function mountBottomSheets(root = document) {
+let openSheetFn = null;
+
+export function openAuthSheet(key) {
+  if (typeof openSheetFn === 'function') openSheetFn(key);
+}
+
+export function mountBottomSheets(root = document, { openSheet: initialSheet = null } = {}) {
   const sheetRoot = root.querySelector('#sheet-root') || document.getElementById('sheet-root');
-  if (!sheetRoot || sheetRoot.dataset.bound === '1') return;
-  sheetRoot.dataset.bound = '1';
+  if (!sheetRoot) return;
 
   const titleEl = sheetRoot.querySelector('#sheet-title');
   const bodyEl = sheetRoot.querySelector('#sheet-body');
+  const panelEl = sheetRoot.querySelector('.sheet-panel');
 
   function openSheet(key) {
     const sheet = sheets[key];
     if (!sheet) return;
     titleEl.textContent = sheet.title;
-    bodyEl.innerHTML = sheet.html;
+    bodyEl.innerHTML = typeof sheet.html === 'function' ? sheet.html() : sheet.html;
+    sheetRoot.classList.toggle('is-auth', Boolean(sheet.auth));
+    if (panelEl) panelEl.classList.toggle('is-auth', Boolean(sheet.auth));
     sheetRoot.hidden = false;
     requestAnimationFrame(() => sheetRoot.classList.add('is-open'));
     document.body.classList.add('sheet-open');
+
+    if (key === 'login') bindLoginForm(bodyEl);
+    if (key === 'signup') bindSignupForm(bodyEl);
+
+    bodyEl.querySelectorAll('[data-sheet]').forEach((trigger) => {
+      trigger.addEventListener('click', (e) => {
+        e.preventDefault();
+        openSheet(trigger.getAttribute('data-sheet'));
+      });
+    });
   }
 
   function closeSheet() {
     sheetRoot.classList.remove('is-open');
+    sheetRoot.classList.remove('is-auth');
+    if (panelEl) panelEl.classList.remove('is-auth');
     document.body.classList.remove('sheet-open');
     window.setTimeout(() => {
-      if (!sheetRoot.classList.contains('is-open')) sheetRoot.hidden = true;
+      if (!sheetRoot.classList.contains('is-open')) {
+        sheetRoot.hidden = true;
+        bodyEl.innerHTML = '';
+      }
     }, 220);
   }
 
-  root.querySelectorAll('[data-sheet]').forEach((trigger) => {
-    trigger.addEventListener('click', (e) => {
-      e.preventDefault();
-      openSheet(trigger.getAttribute('data-sheet'));
+  openSheetFn = openSheet;
+
+  if (sheetRoot.dataset.bound !== '1') {
+    sheetRoot.dataset.bound = '1';
+
+    root.querySelectorAll('[data-sheet]').forEach((trigger) => {
+      trigger.addEventListener('click', (e) => {
+        e.preventDefault();
+        openSheet(trigger.getAttribute('data-sheet'));
+      });
     });
-  });
 
-  sheetRoot.querySelectorAll('[data-sheet-close]').forEach((btn) => {
-    btn.addEventListener('click', closeSheet);
-  });
+    sheetRoot.querySelectorAll('[data-sheet-close]').forEach((btn) => {
+      btn.addEventListener('click', closeSheet);
+    });
 
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sheetRoot.classList.contains('is-open')) closeSheet();
-  });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && sheetRoot.classList.contains('is-open')) closeSheet();
+    });
+  }
+
+  if (initialSheet) {
+    requestAnimationFrame(() => openSheet(initialSheet));
+  }
 }

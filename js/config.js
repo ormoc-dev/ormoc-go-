@@ -1,6 +1,4 @@
 import { renderHome, mountHome } from './views/home.js';
-import { renderLogin, mountLogin } from './views/login.js';
-import { renderSignup, mountSignup } from './views/signup.js';
 import { renderNotFound, mountNotFound } from './views/not-found.js';
 
 export { getAppName } from './env.js';
@@ -13,25 +11,25 @@ export const routes = {
     title: 'Welcome',
     active: 'home',
     hideChrome: true,
-    css: ['public/css/home.css'],
+    css: ['public/css/home.css', 'public/css/auth/auth.css'],
     render: renderHome,
     mount: mountHome,
   },
   login: {
     title: 'Sign in',
-    active: 'login',
+    active: 'home',
     hideChrome: true,
-    css: ['public/css/auth/auth.css'],
-    render: renderLogin,
-    mount: mountLogin,
+    css: ['public/css/home.css', 'public/css/auth/auth.css'],
+    render: renderHome,
+    mount: (root) => mountHome(root, { openSheet: 'login' }),
   },
   signup: {
     title: 'Sign up',
-    active: 'signup',
+    active: 'home',
     hideChrome: true,
-    css: ['public/css/auth/auth.css'],
-    render: renderSignup,
-    mount: mountSignup,
+    css: ['public/css/home.css', 'public/css/auth/auth.css'],
+    render: renderHome,
+    mount: (root) => mountHome(root, { openSheet: 'signup' }),
   },
   '404': {
     title: 'Not found',

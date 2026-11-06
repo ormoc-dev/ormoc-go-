@@ -1,5 +1,5 @@
 import { getAppName, routes, defaultPage } from './config.js';
-import { loadEnv } from './env.js';
+import { getEnv, loadEnv } from './env.js';
 import { applyPwaMeta, registerServiceWorker } from './pwa.js';
 import { getSupabase } from './supabase.js';
 import { renderHeader } from './components/header.js';
@@ -22,13 +22,15 @@ function resolvePage() {
 }
 
 function ensureStyles(paths = []) {
+  const version = encodeURIComponent(getEnv().APP_VERSION || '0.1.1');
   paths.forEach((href) => {
-    if (loadedStyles.has(href)) return;
+    const busted = `${href}?v=${version}`;
+    if (loadedStyles.has(busted)) return;
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = href;
+    link.href = busted;
     document.head.appendChild(link);
-    loadedStyles.add(href);
+    loadedStyles.add(busted);
   });
 }
 

@@ -39,7 +39,8 @@ const PRECACHE = [
   './js/views/not-found.js',
   './public/assets/icons/icon-192.png',
   './public/assets/icons/icon-512.png',
-  './public/assets/icons/logo.jpg',
+  './public/assets/icons/logo.png',
+  './public/assets/icons/ormoc_banner.png',
 ];
 
 self.addEventListener('install', (event) => {

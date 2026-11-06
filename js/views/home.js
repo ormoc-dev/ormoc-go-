@@ -24,10 +24,10 @@ export function renderHome() {
 
       <div class="welcome-content">
         <h1 class="welcome-headline">Ormoc details, made simple.</h1>
-        <p class="welcome-copy">A community city guide for Ormocanos — places, local info, and helpful tools.</p>
+        <p class="welcome-copy">A community city guide for Ormocanos and tourists — places, local info, and helpful tools.</p>
         <div class="welcome-actions">
-          <a class="btn btn-primary" href="?page=signup" data-page="signup">Get started</a>
-          <a class="btn btn-ghost" href="?page=login" data-page="login">Sign in</a>
+          <button type="button" class="btn btn-primary" data-sheet="signup">Get started</button>
+          <button type="button" class="btn btn-ghost" data-sheet="login">Sign in</button>
           <button type="button" class="btn btn-google" id="welcome-google">
             ${googleIcon}
             <span>Continue with Google</span>
@@ -48,12 +48,12 @@ export function renderHome() {
   `;
 }
 
-export function mountHome(root = document) {
+export function mountHome(root = document, { openSheet = null } = {}) {
   const section = root.querySelector('.welcome') || document.querySelector('.welcome');
   if (!section) return;
   requestAnimationFrame(() => section.classList.add('is-ready'));
   mountOrmocSlider(section);
-  mountBottomSheets(section);
+  mountBottomSheets(section, { openSheet });
 
   const googleBtn = section.querySelector('#welcome-google');
   const errorEl = section.querySelector('#welcome-auth-error');
