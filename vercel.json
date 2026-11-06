@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "echo skip-install",
-  "buildCommand": "rm -rf dist && mkdir -p dist && cp index.html offline.html sw.js manifest.webmanifest dist/ && cp -r js public dist/",
+  "buildCommand": "rm -rf dist && mkdir -p dist && cp index.html offline.html sw.js manifest.webmanifest .env.production dist/ && cp -r js public dist/",
   "outputDirectory": "dist",
   "cleanUrls": true,
   "headers": [

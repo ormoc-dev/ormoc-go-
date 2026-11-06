@@ -62,11 +62,27 @@ async function loadFromApi() {
   return { ...defaults, ...data };
 }
 
-async function loadFromEnvFile() {
-  const file = envFileForHost();
+async function loadFromEnvFile(file = envFileForHost()) {
   const res = await fetch(file, { cache: 'no-store' });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return parseEnv(await res.text());
+}
+
+function missingCriticalKeys(env) {
+  return !String(env?.GOOGLE_MAPS_API_KEY || '').trim()
+    || !String(env?.SUPABASE_URL || '').trim()
+    || !String(env?.SUPABASE_ANON_KEY || '').trim();
+}
+
+/** Prefer non-empty values from `primary`, fill gaps from `fallback`. */
+function mergeEnv(primary, fallback) {
+  const out = { ...defaults, ...fallback, ...primary };
+  Object.keys(defaults).forEach((key) => {
+    const a = String(primary?.[key] ?? '').trim();
+    const b = String(fallback?.[key] ?? '').trim();
+    out[key] = a || b || defaults[key];
+  });
+  return out;
 }
 
 export async function loadEnv() {
@@ -74,7 +90,17 @@ export async function loadEnv() {
 
   try {
     if (!isLocalHost(window.location.hostname)) {
-      cache = await loadFromApi();
+      const apiEnv = await loadFromApi();
+      if (missingCriticalKeys(apiEnv)) {
+        try {
+          const fileEnv = await loadFromEnvFile('.env.production');
+          cache = mergeEnv(apiEnv, fileEnv);
+        } catch (_) {
+          cache = apiEnv;
+        }
+      } else {
+        cache = apiEnv;
+      }
     } else {
       cache = await loadFromEnvFile();
     }

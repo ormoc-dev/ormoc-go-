@@ -295,7 +295,7 @@ export function loadGoogleMaps() {
 
   const key = getMapsApiKey();
   if (!key) {
-    return Promise.reject(new Error('Google Maps API key is missing. Add GOOGLE_MAPS_API_KEY to env.'));
+    return Promise.reject(new Error('Google Maps API key is missing. Set GOOGLE_MAPS_API_KEY in Vercel env (Production) or .env.production, then redeploy.'));
   }
 
   mapsPromise = new Promise((resolve, reject) => {
