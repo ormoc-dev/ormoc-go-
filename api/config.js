@@ -31,7 +31,7 @@ export default function handler(req, res) {
     PWA_DESCRIPTION:
       process.env.PWA_DESCRIPTION
       || 'Community city guide for Ormoc — local details, places, and helpful tools.',
-    PWA_THEME_COLOR: process.env.PWA_THEME_COLOR || '#2563eb',
+    PWA_THEME_COLOR: process.env.PWA_THEME_COLOR || '#ffffff',
     PWA_BACKGROUND_COLOR: process.env.PWA_BACKGROUND_COLOR || '#ffffff',
     PWA_START_URL: process.env.PWA_START_URL || './index.html',
     PWA_SCOPE: process.env.PWA_SCOPE || './',

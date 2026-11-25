@@ -79,23 +79,21 @@ function renderEmergencyRows(list) {
   `).join('');
 }
 
-function renderEmergencyListHtml(contacts = EMERGENCY_SEED) {
+function renderEmergencyListHtml(contacts = EMERGENCY_SEED, activeGroup = 'hospital') {
   const { hospitals, police } = groupEmergencyContacts(contacts);
+  const isHospital = activeGroup !== 'police';
+  const rows = isHospital ? hospitals : police;
+  const mapCategory = isHospital ? 'hospitals' : 'police';
   return `
-    <section class="map-emergency-group" aria-label="Hospital">
-      <div class="map-emergency-group-head">
-        <h3 class="map-emergency-group-title">Hospital</h3>
-        <button type="button" class="map-emergency-map" data-emergency-category="hospitals">Map</button>
-      </div>
-      <div class="map-emergency-rows">${renderEmergencyRows(hospitals)}</div>
-    </section>
-    <section class="map-emergency-group" aria-label="Police">
-      <div class="map-emergency-group-head">
-        <h3 class="map-emergency-group-title">Police</h3>
-        <button type="button" class="map-emergency-map" data-emergency-category="police">Map</button>
-      </div>
-      <div class="map-emergency-rows">${renderEmergencyRows(police)}</div>
-    </section>
+    <div class="map-emergency-tabs" role="tablist" aria-label="Emergency categories">
+      <button type="button" class="map-emergency-tab${isHospital ? ' is-active' : ''}" role="tab" aria-selected="${isHospital ? 'true' : 'false'}" data-emergency-tab="hospital">Hospital</button>
+      <button type="button" class="map-emergency-tab${!isHospital ? ' is-active' : ''}" role="tab" aria-selected="${!isHospital ? 'true' : 'false'}" data-emergency-tab="police">Police</button>
+    </div>
+    <div class="map-emergency-toolbar">
+      <p class="map-emergency-count">${rows.length} contact${rows.length === 1 ? '' : 's'}</p>
+      <button type="button" class="map-emergency-map" data-emergency-category="${mapCategory}">Show on map</button>
+    </div>
+    <div class="map-emergency-rows" role="tabpanel">${renderEmergencyRows(rows)}</div>
   `;
 }
 
@@ -372,7 +370,7 @@ function renderMapPanel() {
             <button type="button" class="map-emergency-close" data-emergency-close aria-label="Close">Close</button>
           </header>
           <div class="map-emergency-list" id="map-emergency-list">
-            ${renderEmergencyListHtml(EMERGENCY_SEED)}
+            ${renderEmergencyListHtml(EMERGENCY_SEED, 'hospital')}
           </div>
         </div>
       </div>
@@ -1268,11 +1266,22 @@ export function mountDashboard(root = document) {
   const emergencyBtn = shell.querySelector('#map-emergency-btn');
   const emergencyModal = shell.querySelector('#map-emergency-modal');
   const emergencyList = shell.querySelector('#map-emergency-list');
+  let emergencyContactsCache = EMERGENCY_SEED;
+  let emergencyActiveTab = 'hospital';
 
-  function bindEmergencyMapButtons() {
-    emergencyModal?.querySelectorAll('[data-emergency-category]').forEach((btn) => {
-      if (btn.dataset.bound === '1') return;
-      btn.dataset.bound = '1';
+  function bindEmergencyListControls() {
+    emergencyList?.querySelectorAll('[data-emergency-tab]').forEach((btn) => {
+      btn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        emergencyActiveTab = btn.getAttribute('data-emergency-tab') === 'police' ? 'police' : 'hospital';
+        if (emergencyList) {
+          emergencyList.innerHTML = renderEmergencyListHtml(emergencyContactsCache, emergencyActiveTab);
+        }
+        bindEmergencyListControls();
+      });
+    });
+
+    emergencyList?.querySelectorAll('[data-emergency-category]').forEach((btn) => {
       btn.addEventListener('click', (event) => {
         event.stopPropagation();
         const category = btn.getAttribute('data-emergency-category');
@@ -1285,10 +1294,12 @@ export function mountDashboard(root = document) {
   }
 
   async function refreshEmergencyList() {
-    const contacts = await ensureEmergencyContactsCached();
-    if (emergencyList) emergencyList.innerHTML = renderEmergencyListHtml(contacts);
-    bindEmergencyMapButtons();
-    return contacts;
+    emergencyContactsCache = await ensureEmergencyContactsCached();
+    if (emergencyList) {
+      emergencyList.innerHTML = renderEmergencyListHtml(emergencyContactsCache, emergencyActiveTab);
+    }
+    bindEmergencyListControls();
+    return emergencyContactsCache;
   }
 
   function setEmergencyOpen(open) {
@@ -1468,7 +1479,7 @@ export function mountDashboard(root = document) {
     btn.addEventListener('click', () => setEmergencyOpen(false));
   });
 
-  bindEmergencyMapButtons();
+  bindEmergencyListControls();
   void refreshEmergencyList();
 
   mapTypeBtns.forEach((btn) => {

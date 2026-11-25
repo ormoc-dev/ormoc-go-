@@ -381,29 +381,50 @@ body.streetview-fs-open {
 
 .map-emergency-list {
   display: grid;
-  gap: 0.7rem;
+  gap: 0.55rem;
 }
 
-.map-emergency-group {
+.map-emergency-tabs {
   display: grid;
-  gap: 0.15rem;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+  padding: 0.2rem;
+  border-radius: 999px;
+  background: #eef5fb;
 }
 
-.map-emergency-group-head {
+.map-emergency-tab {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.48rem 0.7rem;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.map-emergency-tab.is-active {
+  background: #fff;
+  color: var(--brand-deep);
+  box-shadow: 0 4px 12px rgba(15, 39, 68, 0.08);
+}
+
+.map-emergency-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  padding: 0 0.1rem 0.2rem;
+  padding: 0 0.1rem;
 }
 
-.map-emergency-group-title {
+.map-emergency-count {
   margin: 0;
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  font-size: 0.72rem;
   color: var(--muted);
+  font-weight: 650;
 }
 
 .map-emergency-rows {

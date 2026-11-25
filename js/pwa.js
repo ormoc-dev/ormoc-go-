@@ -16,7 +16,7 @@ export function registerServiceWorker() {
 export function applyPwaMeta() {
   const env = getEnv();
   const theme = document.querySelector('meta[name="theme-color"]');
-  if (theme) theme.setAttribute('content', env.PWA_THEME_COLOR || '#2563eb');
+  if (theme) theme.setAttribute('content', env.PWA_THEME_COLOR || '#ffffff');
 
   if (document.title === 'OrmocGo' || !document.title) {
     document.title = env.PWA_NAME || env.APP_NAME || 'OrmocGo';
