@@ -680,6 +680,48 @@ body.emergency-sheet-open {
   color: #fff;
 }
 
+.app-toast {
+  position: fixed;
+  top: calc(0.75rem + env(safe-area-inset-top, 0px));
+  left: 50%;
+  z-index: 3200;
+  width: min(22rem, calc(100vw - 1.5rem));
+  padding: 0.7rem 0.9rem;
+  border-radius: 12px;
+  background: #0f2744;
+  color: #fff;
+  font-size: 0.86rem;
+  font-weight: 650;
+  line-height: 1.35;
+  text-align: center;
+  box-shadow: 0 10px 28px rgba(15, 39, 68, 0.22);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -8px);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.app-toast[hidden] {
+  display: none !important;
+}
+
+.app-toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.app-toast.is-success {
+  background: #166534;
+}
+
+.app-toast.is-error {
+  background: #b91c1c;
+}
+
+.app-toast.is-info {
+  background: #0f2744;
+}
+
 .map-status {
   position: absolute;
   left: 0.75rem;

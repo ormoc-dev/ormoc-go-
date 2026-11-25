@@ -1298,6 +1298,7 @@ export function renderDashboard(user) {
 
   return `
     <section class="dash-shell" aria-label="OrmocGo app" data-active-tab="${escapeHtml(startTab)}">
+      <div class="app-toast" id="app-toast" role="status" aria-live="polite" hidden></div>
       <div class="dash-body">
         ${withPanelState(mapHtml, 'map')}
         ${withPanelState(routesHtml, 'routes')}
@@ -1422,14 +1423,63 @@ export function mountDashboard(root = document) {
     if (open) setEmergencyOpen(false);
   }
 
+  const toastEl = shell.querySelector('#app-toast');
+  let toastTimer = null;
   let statusTimer = null;
-  function setStatus(text, { sticky = false } = {}) {
+
+  function showToast(message, { type = 'info', duration = 2600 } = {}) {
+    if (!toastEl) return;
+    const text = String(message || '').trim();
+    if (!text) {
+      toastEl.hidden = true;
+      toastEl.classList.remove('is-visible', 'is-success', 'is-error', 'is-info');
+      toastEl.textContent = '';
+      return;
+    }
+
+    const kind = type === 'success' || type === 'error' ? type : 'info';
+    toastEl.textContent = text;
+    toastEl.hidden = false;
+    toastEl.classList.remove('is-success', 'is-error', 'is-info');
+    toastEl.classList.add(`is-${kind}`);
+    requestAnimationFrame(() => toastEl.classList.add('is-visible'));
+
+    clearTimeout(toastTimer);
+    if (duration > 0) {
+      toastTimer = setTimeout(() => {
+        toastEl.classList.remove('is-visible');
+        window.setTimeout(() => {
+          if (!toastEl.classList.contains('is-visible')) {
+            toastEl.hidden = true;
+            toastEl.textContent = '';
+          }
+        }, 200);
+      }, duration);
+    }
+  }
+
+  function setStatus(text, { sticky = false, type = 'info' } = {}) {
+    const message = String(text || '').trim();
+    if (!message) {
+      showToast('');
+      if (status) {
+        status.textContent = '';
+        status.classList.remove('is-visible');
+      }
+      return;
+    }
+
+    showToast(message, {
+      type,
+      duration: sticky ? 4200 : 2600,
+    });
+
+    // Keep legacy map status in sync for map-context hints.
     if (!status) return;
-    status.textContent = text || '';
-    const show = Boolean(text);
-    status.classList.toggle('is-visible', show);
+    status.textContent = message;
+    status.classList.toggle('is-visible', true);
     clearTimeout(statusTimer);
-    if (show && !sticky) {
+    if (!sticky) {
       statusTimer = setTimeout(() => {
         status.classList.remove('is-visible');
       }, 2600);
@@ -1500,7 +1550,7 @@ export function mountDashboard(root = document) {
       mapApi.setStatusMarkers(places);
       setStatus(`${places.length} result${places.length === 1 ? '' : 's'} · ${q}`);
     } catch (err) {
-      setStatus(err.message || 'Search failed');
+      setStatus(err.message || 'Search failed', { type: 'error' });
     }
   }
 
@@ -1534,7 +1584,7 @@ export function mountDashboard(root = document) {
       mapApi.setStatusMarkers(places);
       setStatus(`${places.length} ${selected.label.toLowerCase()} · tap a pin`);
     } catch (err) {
-      setStatus(err.message || 'Category search failed');
+      setStatus(err.message || 'Category search failed', { type: 'error' });
     }
   }
 
@@ -1557,7 +1607,7 @@ export function mountDashboard(root = document) {
       setStatus('');
       await runCategory('home');
     } catch (err) {
-      setStatus(err.message || 'Could not load map', { sticky: true });
+      setStatus(err.message || 'Could not load map', { sticky: true, type: 'error' });
     }
   }
 
@@ -1716,7 +1766,7 @@ export function mountDashboard(root = document) {
         const saved = toggleSavedPlace(spot);
         syncTouristSaveButtons();
         refreshSavedLists();
-        setStatus(saved ? `Saved ${spot.name}` : `Removed ${spot.name}`);
+        setStatus(saved ? `Saved ${spot.name}` : `Removed ${spot.name}`, { type: 'success' });
         return;
       }
 
@@ -2020,7 +2070,7 @@ export function mountDashboard(root = document) {
       const saved = toggleSavedRoute(payload);
       syncRouteSaveButton();
       refreshSavedLists();
-      setStatus(saved ? 'Route saved' : 'Route removed from saved');
+      setStatus(saved ? 'Route saved' : 'Route removed from saved', { type: 'success' });
     });
   }
 
@@ -2363,20 +2413,27 @@ export function mountDashboard(root = document) {
     try {
       const profile = await saveUserResume(user, file);
       if (profileResumeBox) profileResumeBox.innerHTML = renderResumeSummary(profile.resume);
-      if (profileResumeStatus) profileResumeStatus.textContent = 'Resume uploaded.';
+      if (profileResumeStatus) profileResumeStatus.textContent = '';
       refreshMoreProfileSummary(profile, user);
+      showToast('Resume uploaded', { type: 'success' });
     } catch (err) {
-      if (profileResumeStatus) profileResumeStatus.textContent = err?.message || 'Could not upload resume.';
+      if (profileResumeStatus) profileResumeStatus.textContent = '';
+      showToast(err?.message || 'Could not upload resume', { type: 'error' });
     }
   });
 
   profileResumeBox?.addEventListener('click', async (event) => {
     const user = await ensureProfileUser();
     if (event.target.closest('[data-profile-resume-remove]')) {
-      const profile = await removeUserResume(user);
-      if (profileResumeBox) profileResumeBox.innerHTML = renderResumeSummary(profile.resume);
-      if (profileResumeStatus) profileResumeStatus.textContent = 'Resume removed.';
-      refreshMoreProfileSummary(profile, user);
+      try {
+        const profile = await removeUserResume(user);
+        if (profileResumeBox) profileResumeBox.innerHTML = renderResumeSummary(profile.resume);
+        if (profileResumeStatus) profileResumeStatus.textContent = '';
+        refreshMoreProfileSummary(profile, user);
+        showToast('Resume removed', { type: 'success' });
+      } catch (err) {
+        showToast(err?.message || 'Could not remove resume', { type: 'error' });
+      }
       return;
     }
     if (event.target.closest('[data-profile-resume-download]')) {
@@ -2384,7 +2441,7 @@ export function mountDashboard(root = document) {
         const blob = await getUserResumeBlob(user);
         const profile = getUserProfile(user);
         if (!blob) {
-          if (profileResumeStatus) profileResumeStatus.textContent = 'Resume file not found.';
+          showToast('Resume file not found', { type: 'error' });
           return;
         }
         const url = URL.createObjectURL(blob);
@@ -2396,22 +2453,30 @@ export function mountDashboard(root = document) {
         a.remove();
         URL.revokeObjectURL(url);
       } catch (_) {
-        if (profileResumeStatus) profileResumeStatus.textContent = 'Could not download resume.';
+        showToast('Could not download resume', { type: 'error' });
       }
     }
   });
 
   profileForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const user = await ensureProfileUser();
-    const profile = saveUserProfile(user, {
-      fullName: profileNameInput?.value || '',
-      about: profileAboutInput?.value || '',
-      skills: profileSkills,
-    });
-    refreshMoreProfileSummary(profile, user);
-    if (profileFormStatus) profileFormStatus.textContent = 'Profile saved.';
-    setStatus('Profile saved');
+    const saveBtn = profileForm.querySelector('.profile-save-btn');
+    if (saveBtn) saveBtn.disabled = true;
+    if (profileFormStatus) profileFormStatus.textContent = '';
+    try {
+      const user = await ensureProfileUser();
+      const profile = saveUserProfile(user, {
+        fullName: profileNameInput?.value || '',
+        about: profileAboutInput?.value || '',
+        skills: profileSkills,
+      });
+      refreshMoreProfileSummary(profile, user);
+      showToast('Profile saved', { type: 'success' });
+    } catch (err) {
+      showToast(err?.message || 'Could not save profile', { type: 'error' });
+    } finally {
+      if (saveBtn) saveBtn.disabled = false;
+    }
   });
 
   ensureProfileUser().then(async (user) => {
@@ -2524,7 +2589,7 @@ export function mountDashboard(root = document) {
       const saved = toggleSavedCommunity({ ...post, kind: 'post' });
       syncCommunitySaveButtons();
       refreshSavedLists();
-      setStatus(saved ? 'Saved to Community' : 'Removed from saved');
+      setStatus(saved ? 'Saved to Community' : 'Removed from saved', { type: 'success' });
     });
   });
 
@@ -2535,7 +2600,7 @@ export function mountDashboard(root = document) {
       const saved = toggleSavedCommunity({ ...job, kind: 'job', image: job.logo });
       syncCommunitySaveButtons();
       refreshSavedLists();
-      setStatus(saved ? 'Job saved' : 'Job removed from saved');
+      setStatus(saved ? 'Job saved' : 'Job removed from saved', { type: 'success' });
     });
   });
 
@@ -2606,7 +2671,7 @@ export function mountDashboard(root = document) {
       if (removePlace) {
         removeSavedPlace(removePlace.dataset.savedRemovePlace);
         refreshSavedLists();
-        setStatus('Place removed');
+        setStatus('Place removed', { type: 'success' });
         return;
       }
 
@@ -2614,7 +2679,7 @@ export function mountDashboard(root = document) {
       if (removeRoute) {
         removeSavedRoute(removeRoute.dataset.savedRemoveRoute);
         refreshSavedLists();
-        setStatus('Route removed');
+        setStatus('Route removed', { type: 'success' });
         return;
       }
 
@@ -2622,7 +2687,7 @@ export function mountDashboard(root = document) {
       if (removeCommunity) {
         removeSavedCommunity(removeCommunity.dataset.savedRemoveCommunity);
         refreshSavedLists();
-        setStatus('Removed from saved');
+        setStatus('Removed from saved', { type: 'success' });
         return;
       }
 
