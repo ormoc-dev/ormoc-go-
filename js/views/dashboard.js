@@ -56,8 +56,52 @@ const TABS = [
 
 const TAB_STORAGE_KEY = 'ormocgo.dash.tab';
 const MORE_VIEW_STORAGE_KEY = 'ormocgo.dash.moreView';
+const PROFILE_DRAFT_KEY = 'ormocgo.dash.profileDraft';
 const VALID_TABS = new Set(TABS.map((tab) => tab.id));
 const VALID_MORE_VIEWS = new Set(['home', 'profile']);
+
+function profileDraftKey(user) {
+  return `${PROFILE_DRAFT_KEY}.${user?.id || 'local'}`;
+}
+
+function readProfileDraft(user) {
+  try {
+    const raw = sessionStorage.getItem(profileDraftKey(user));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    return {
+      fullName: String(parsed.fullName || ''),
+      about: String(parsed.about || ''),
+      skills: Array.isArray(parsed.skills)
+        ? parsed.skills.map((s) => String(s || '').trim()).filter(Boolean).slice(0, 24)
+        : [],
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeProfileDraft(user, draft) {
+  try {
+    sessionStorage.setItem(profileDraftKey(user), JSON.stringify({
+      fullName: String(draft.fullName || ''),
+      about: String(draft.about || ''),
+      skills: Array.isArray(draft.skills) ? draft.skills.slice(0, 24) : [],
+      updatedAt: Date.now(),
+    }));
+  } catch (_) {
+    /* ignore */
+  }
+}
+
+function clearProfileDraft(user) {
+  try {
+    sessionStorage.removeItem(profileDraftKey(user));
+  } catch (_) {
+    /* ignore */
+  }
+}
 
 function readStoredTab() {
   try {
@@ -1525,9 +1569,8 @@ export function mountDashboard(root = document) {
     if (next === 'more') {
       const moreView = readStoredMoreView();
       setMoreView?.(moreView, { persist: false });
-      if (moreView === 'profile') void loadProfileEditor?.();
-    } else {
-      setMoreView?.('home', { persist: false });
+      // Only hydrate once when opening Edit profile — never overwrite in-progress typing.
+      if (moreView === 'profile') void loadProfileEditor?.({ preserveDraft: true });
     }
   }
 
@@ -2294,6 +2337,9 @@ export function mountDashboard(root = document) {
   const moreSkillsPreview = shell.querySelector('[data-more-skills-preview]');
   let profileSkills = [];
   let profileUser = null;
+  let profileEditorReady = false;
+  let profileDraftDirty = false;
+  let profileDraftTimer = null;
 
   async function ensureProfileUser() {
     if (profileUser) return profileUser;
@@ -2330,6 +2376,34 @@ export function mountDashboard(root = document) {
     `).join('');
   }
 
+  function getEditorDraftSnapshot() {
+    return {
+      fullName: String(profileNameInput?.value || ''),
+      about: String(profileAboutInput?.value || ''),
+      skills: [...profileSkills],
+    };
+  }
+
+  function applyEditorFields({ fullName = '', about = '', skills = [] } = {}, user) {
+    profileSkills = Array.isArray(skills) ? [...skills] : [];
+    if (profileNameInput) profileNameInput.value = fullName || displayName(user);
+    if (profileAboutInput) profileAboutInput.value = about || '';
+    renderSkillList();
+  }
+
+  function persistEditorDraft(user) {
+    writeProfileDraft(user, getEditorDraftSnapshot());
+    profileDraftDirty = true;
+  }
+
+  function scheduleEditorDraft(user) {
+    profileDraftDirty = true;
+    clearTimeout(profileDraftTimer);
+    profileDraftTimer = setTimeout(() => {
+      writeProfileDraft(user, getEditorDraftSnapshot());
+    }, 200);
+  }
+
   function refreshMoreProfileSummary(profile, user) {
     const name = profile.fullName || displayName(user);
     if (moreDisplayName) moreDisplayName.textContent = name;
@@ -2346,23 +2420,43 @@ export function mountDashboard(root = document) {
     if (profileResumeBox) profileResumeBox.innerHTML = renderResumeSummary(profile.resume);
   }
 
-  async function loadProfileEditor() {
+  async function loadProfileEditor({ preserveDraft = false, force = false } = {}) {
     const user = await ensureProfileUser();
-    // Show local cache immediately, then refresh from Supabase if needed.
+    const draft = readProfileDraft(user);
+
+    // Keep whatever the user is typing when switching tabs / returning to the app.
+    if (preserveDraft && profileEditorReady && !force) {
+      if (profileDraftDirty || draft) {
+        if (draft && !profileDraftDirty) applyEditorFields(draft, user);
+        return;
+      }
+      if (profileAboutInput?.value || profileNameInput?.value || profileSkills.length) {
+        return;
+      }
+    }
+
     let profile = getUserProfile(user);
-    profileSkills = [...(profile.skills || [])];
-    if (profileNameInput) profileNameInput.value = profile.fullName || displayName(user);
-    if (profileAboutInput) profileAboutInput.value = profile.about || '';
+    const initial = draft || {
+      fullName: profile.fullName || displayName(user),
+      about: profile.about || '',
+      skills: [...(profile.skills || [])],
+    };
+    applyEditorFields(initial, user);
+    profileDraftDirty = Boolean(draft);
     if (profileResumeStatus) profileResumeStatus.textContent = '';
     if (profileFormStatus) profileFormStatus.textContent = '';
-    renderSkillList();
     if (profileResumeBox) profileResumeBox.innerHTML = renderResumeSummary(profile.resume);
+    profileEditorReady = true;
 
     profile = await hydrateUserProfile(user);
-    profileSkills = [...(profile.skills || [])];
-    if (profileNameInput) profileNameInput.value = profile.fullName || displayName(user);
-    if (profileAboutInput) profileAboutInput.value = profile.about || '';
-    renderSkillList();
+    // Never clobber unsaved draft after remote hydrate.
+    if (!(profileDraftDirty || readProfileDraft(user))) {
+      applyEditorFields({
+        fullName: profile.fullName || displayName(user),
+        about: profile.about || '',
+        skills: [...(profile.skills || [])],
+      }, user);
+    }
     if (profileResumeBox) profileResumeBox.innerHTML = renderResumeSummary(profile.resume);
     refreshMoreProfileSummary(profile, user);
   }
@@ -2374,19 +2468,40 @@ export function mountDashboard(root = document) {
     if (!exists && profileSkills.length < 24) {
       profileSkills.push(value.slice(0, 40));
       renderSkillList();
+      ensureProfileUser().then((user) => persistEditorDraft(user));
     }
     if (profileSkillInput) profileSkillInput.value = '';
     profileSkillInput?.focus();
   }
 
   shell.querySelector('[data-more-open-profile]')?.addEventListener('click', async () => {
-    await loadProfileEditor();
+    await loadProfileEditor({ preserveDraft: true });
     setMoreView('profile');
   });
 
   shell.querySelector('[data-more-close-profile]')?.addEventListener('click', () => {
+    // Keep draft so Back → Edit profile still has typed text until Save.
     setMoreView('home');
   });
+
+  profileNameInput?.addEventListener('input', () => {
+    ensureProfileUser().then((user) => scheduleEditorDraft(user));
+  });
+  profileAboutInput?.addEventListener('input', () => {
+    ensureProfileUser().then((user) => scheduleEditorDraft(user));
+  });
+
+  // Flush draft when leaving the app / phone tab so remount can restore it.
+  const flushProfileDraft = () => {
+    if (!profileDraftDirty) return;
+    ensureProfileUser().then((user) => {
+      writeProfileDraft(user, getEditorDraftSnapshot());
+    });
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushProfileDraft();
+  });
+  window.addEventListener('pagehide', flushProfileDraft);
 
   profileSkillAdd?.addEventListener('click', addProfileSkill);
   profileSkillInput?.addEventListener('keydown', (event) => {
@@ -2402,6 +2517,7 @@ export function mountDashboard(root = document) {
     const skill = btn.getAttribute('data-profile-skill-remove');
     profileSkills = profileSkills.filter((item) => item !== skill);
     renderSkillList();
+    ensureProfileUser().then((user) => persistEditorDraft(user));
   });
 
   profileResumeInput?.addEventListener('change', async () => {
@@ -2470,6 +2586,8 @@ export function mountDashboard(root = document) {
         about: profileAboutInput?.value || '',
         skills: profileSkills,
       });
+      clearProfileDraft(user);
+      profileDraftDirty = false;
       refreshMoreProfileSummary(profile, user);
       showToast('Profile saved', { type: 'success' });
     } catch (err) {
@@ -2803,7 +2921,7 @@ export function mountDashboard(root = document) {
     if (next === 'more') {
       const moreView = readStoredMoreView();
       setMoreView(moreView, { persist: false });
-      if (moreView === 'profile') void loadProfileEditor();
+      if (moreView === 'profile') void loadProfileEditor({ preserveDraft: true });
     }
   });
 }

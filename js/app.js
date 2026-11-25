@@ -171,7 +171,9 @@ function bindAuthListener() {
   getSupabase().then((supabase) => {
     if (!supabase) return;
     supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+      // Do not remount on TOKEN_REFRESHED — that blinks the UI and wipes in-progress form edits
+      // when the phone switches apps / tabs and comes back.
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
         render();
       }
     });
