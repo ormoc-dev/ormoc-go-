@@ -55,7 +55,9 @@ const TABS = [
 ];
 
 const TAB_STORAGE_KEY = 'ormocgo.dash.tab';
+const MORE_VIEW_STORAGE_KEY = 'ormocgo.dash.moreView';
 const VALID_TABS = new Set(TABS.map((tab) => tab.id));
+const VALID_MORE_VIEWS = new Set(['home', 'profile']);
 
 function readStoredTab() {
   try {
@@ -74,6 +76,23 @@ function readStoredTab() {
   return 'map';
 }
 
+function readStoredMoreView() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = params.get('view');
+    if (VALID_MORE_VIEWS.has(fromQuery)) return fromQuery;
+  } catch (_) {
+    /* ignore */
+  }
+  try {
+    const stored = localStorage.getItem(MORE_VIEW_STORAGE_KEY);
+    if (VALID_MORE_VIEWS.has(stored)) return stored;
+  } catch (_) {
+    /* ignore */
+  }
+  return 'home';
+}
+
 function persistTab(tabId) {
   if (!VALID_TABS.has(tabId)) return;
   try {
@@ -85,6 +104,29 @@ function persistTab(tabId) {
     const url = new URL(window.location.href);
     if (tabId === 'map') url.searchParams.delete('tab');
     else url.searchParams.set('tab', tabId);
+    if (tabId !== 'more') url.searchParams.delete('view');
+    else if (readStoredMoreView() === 'profile') url.searchParams.set('view', 'profile');
+    window.history.replaceState(window.history.state, '', url);
+  } catch (_) {
+    /* ignore */
+  }
+}
+
+function persistMoreView(view) {
+  const next = view === 'profile' ? 'profile' : 'home';
+  try {
+    localStorage.setItem(MORE_VIEW_STORAGE_KEY, next);
+  } catch (_) {
+    /* ignore */
+  }
+  try {
+    const url = new URL(window.location.href);
+    if (next === 'profile') {
+      url.searchParams.set('tab', 'more');
+      url.searchParams.set('view', 'profile');
+    } else {
+      url.searchParams.delete('view');
+    }
     window.history.replaceState(window.history.state, '', url);
   } catch (_) {
     /* ignore */
@@ -872,8 +914,8 @@ function renderMorePanel(user) {
 
   return `
     <section class="dash-panel dash-panel--more" data-panel="more" aria-label="More" hidden>
-      <div class="more-screen" data-more-view="home">
-        <div class="more-home" data-more-pane="home">
+      <div class="more-screen" data-more-view="${escapeHtml(readStoredTab() === 'more' ? readStoredMoreView() : 'home')}">
+        <div class="more-home" data-more-pane="home"${readStoredTab() === 'more' && readStoredMoreView() === 'profile' ? ' hidden' : ''}>
           <header class="more-hero">
             <p class="more-kicker">${appName}</p>
             <div class="more-profile">
@@ -963,7 +1005,7 @@ function renderMorePanel(user) {
           </div>
         </div>
 
-        <div class="more-profile-edit" data-more-pane="profile" hidden>
+        <div class="more-profile-edit" data-more-pane="profile"${readStoredTab() === 'more' && readStoredMoreView() === 'profile' ? '' : ' hidden'}>
           <header class="profile-edit-top">
             <button type="button" class="profile-back" data-more-close-profile aria-label="Back">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6 9 12l6 6"/></svg>
@@ -1430,8 +1472,12 @@ export function mountDashboard(root = document) {
     if (next === 'saved') {
       refreshSavedLists?.();
     }
-    if (next !== 'more') {
-      setMoreView?.('home');
+    if (next === 'more') {
+      const moreView = readStoredMoreView();
+      setMoreView?.(moreView, { persist: false });
+      if (moreView === 'profile') void loadProfileEditor?.();
+    } else {
+      setMoreView?.('home', { persist: false });
     }
   }
 
@@ -2202,8 +2248,8 @@ export function mountDashboard(root = document) {
   async function ensureProfileUser() {
     if (profileUser) return profileUser;
     try {
-      const supabase = getSupabase();
-      const { data } = await supabase.auth.getSession();
+      const supabase = await getSupabase();
+      const { data } = await supabase?.auth.getSession() || {};
       profileUser = data?.session?.user || { id: 'local' };
     } catch (_) {
       profileUser = { id: 'local' };
@@ -2211,11 +2257,17 @@ export function mountDashboard(root = document) {
     return profileUser;
   }
 
-  function setMoreView(view) {
+  function setMoreView(view, { persist = true } = {}) {
     const next = view === 'profile' ? 'profile' : 'home';
     moreScreen?.setAttribute('data-more-view', next);
     if (moreHomePane) moreHomePane.hidden = next !== 'home';
     if (moreProfilePane) moreProfilePane.hidden = next !== 'profile';
+    if (persist) persistMoreView(next);
+    if (next === 'profile') {
+      document.title = 'Edit profile · OrmocGo';
+    } else if (shell.dataset.activeTab === 'more') {
+      document.title = 'More · OrmocGo';
+    }
   }
 
   function renderSkillList() {
@@ -2676,9 +2728,17 @@ export function mountDashboard(root = document) {
   setTab(initialTab);
   initMap();
 
-  // Keep tab in sync if URL changes (share / back-forward / external edits).
+  // Keep tab + More sub-view in sync if URL changes.
   window.addEventListener('popstate', () => {
     const next = readStoredTab();
-    if (shell.dataset.activeTab !== next) setTab(next, { persist: false });
+    if (shell.dataset.activeTab !== next) {
+      setTab(next, { persist: false });
+      return;
+    }
+    if (next === 'more') {
+      const moreView = readStoredMoreView();
+      setMoreView(moreView, { persist: false });
+      if (moreView === 'profile') void loadProfileEditor();
+    }
   });
 }
