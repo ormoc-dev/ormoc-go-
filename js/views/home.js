@@ -25,16 +25,6 @@ function renderWelcome() {
       ${renderOrmocSlider()}
 
       <div class="welcome-content">
-        <div class="welcome-guide" aria-hidden="true">
-          <img
-            class="welcome-guide-mascot"
-            src="public/assets/icons/welcome-guide-chibi.png?v=2"
-            alt=""
-            width="120"
-            height="120"
-            decoding="async"
-          >
-        </div>
         <h1 class="welcome-headline">Ormoc details, made simple.</h1>
         <p class="welcome-copy">A community city guide for Ormocanos and tourists — places, local info, and helpful tools.</p>
         <div class="welcome-actions">

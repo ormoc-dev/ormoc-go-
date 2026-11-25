@@ -7,7 +7,7 @@ const defaults = {
   APP_NAME: 'OrmocGo',
   APP_ENV: 'local',
   APP_URL: 'https://ormoc-go.vercel.app',
-  APP_VERSION: '0.1.24',
+  APP_VERSION: '0.1.30',
   SUPABASE_URL: '',
   SUPABASE_ANON_KEY: '',
   GOOGLE_MAPS_API_KEY: '',

@@ -4,7 +4,8 @@
 
 import { getEnv } from '../env.js';
 
-export const ORMOC_CENTER = { lat: 11.0064, lng: 124.6075 };
+/** Downtown Ormoc (Real St / city proper) — inland of Ormoc Bay waterfront. */
+export const ORMOC_CENTER = { lat: 11.0105, lng: 124.6085 };
 export const ORMOC_ZOOM = 14;
 
 /** Rough bounding box around Ormoc City */
@@ -235,9 +236,11 @@ function latLngToTile(lat, lng, zoom) {
  * Real map tile preview URLs for layer thumbnails (ArcGIS / OSM / OpenTopoMap).
  * Returns a string or string[] (stacked overlays), matching gps_pwa basemaps.js.
  */
-export function getLayerPreviewUrl(layerId, { zoom = 12 } = {}) {
+export function getLayerPreviewUrl(layerId, { zoom = 13 } = {}) {
+  // Slightly inland sample so thumbs show city streets, not Ormoc Bay water.
   const { tileX, tileY } = latLngToTile(ORMOC_CENTER.lat, ORMOC_CENTER.lng, zoom);
-  const streets = `https://a.tile.openstreetmap.org/${zoom}/${tileX}/${tileY}.png`;
+  // ArcGIS street tiles (OSM CDN often blocks hotlinked browser previews).
+  const streets = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/${zoom}/${tileY}/${tileX}`;
   const imagery = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${tileY}/${tileX}`;
   const places = `https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/${zoom}/${tileY}/${tileX}`;
   const roads = `https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/${zoom}/${tileY}/${tileX}`;
@@ -451,28 +454,98 @@ export function createOrmocMap(container, { locate = true, mapType = 'google' } 
     let routeStartMarker = null;
     let infoWindow = new maps.InfoWindow();
 
+    let streetViewFs = document.getElementById('streetview-fs');
+    if (!streetViewFs) {
+      streetViewFs = document.createElement('div');
+      streetViewFs.id = 'streetview-fs';
+      streetViewFs.className = 'streetview-fs';
+      streetViewFs.hidden = true;
+      streetViewFs.innerHTML = `
+        <div class="streetview-fs-bar">
+          <p class="streetview-fs-title" id="streetview-fs-title">Street View</p>
+          <button type="button" class="streetview-fs-close" data-streetview-close aria-label="Close Street View">Close</button>
+        </div>
+        <iframe
+          class="streetview-fs-frame"
+          id="streetview-fs-frame"
+          title="Street View"
+          allowfullscreen
+          referrerpolicy="no-referrer-when-downgrade"
+        ></iframe>
+      `;
+      document.body.appendChild(streetViewFs);
+    }
+
+    const streetViewTitle = streetViewFs.querySelector('#streetview-fs-title');
+    const streetViewFrame = streetViewFs.querySelector('#streetview-fs-frame');
+
+    function closeStreetViewFs() {
+      streetViewFs.classList.remove('is-open');
+      document.body.classList.remove('streetview-fs-open');
+      window.setTimeout(() => {
+        if (!streetViewFs.classList.contains('is-open')) {
+          streetViewFs.hidden = true;
+          if (streetViewFrame) streetViewFrame.src = 'about:blank';
+        }
+      }, 200);
+    }
+
+    function openStreetViewFs(embedUrl, titleText) {
+      if (!embedUrl || !streetViewFrame) return;
+      if (streetViewTitle) streetViewTitle.textContent = titleText || 'Street View';
+      streetViewFrame.src = embedUrl;
+      streetViewFs.hidden = false;
+      document.body.classList.add('streetview-fs-open');
+      requestAnimationFrame(() => streetViewFs.classList.add('is-open'));
+    }
+
+    if (streetViewFs.dataset.bound !== '1') {
+      streetViewFs.dataset.bound = '1';
+      streetViewFs.querySelectorAll('[data-streetview-close]').forEach((btn) => {
+        btn.addEventListener('click', closeStreetViewFs);
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && streetViewFs.classList.contains('is-open')) {
+          closeStreetViewFs();
+        }
+      });
+    }
+
     function openPlaceCard(place, marker = null) {
-      const title = escapeHtml(place.name || 'Place');
+      const rawTitle = place.name || 'Place';
+      const title = escapeHtml(rawTitle);
       const subtitle = escapeHtml(place.display_name || '');
       const embedUrl = getStreetViewEmbedUrl(place);
       infoWindow.setContent(`
         <div class="place-iw">
-          ${embedUrl ? `
-            <iframe
-              class="place-iw-street"
-              src="${embedUrl}"
-              title="Street View"
-              loading="lazy"
-              referrerpolicy="no-referrer-when-downgrade"
-              allowfullscreen
-            ></iframe>
-          ` : '<div class="place-iw-street is-empty">No Street View</div>'}
           <div class="place-iw-copy">
             <strong>${title}</strong>
             <div class="place-iw-sub">${subtitle}</div>
           </div>
+          ${embedUrl ? `
+            <button
+              type="button"
+              class="place-iw-street-btn"
+              data-open-streetview
+              data-streetview-url="${escapeHtml(embedUrl)}"
+              data-streetview-title="${title}"
+            >
+              Open Street View
+            </button>
+          ` : '<div class="place-iw-street-empty">No Street View nearby</div>'}
         </div>
       `);
+
+      maps.event.addListenerOnce(infoWindow, 'domready', () => {
+        const btn = document.querySelector('.place-iw [data-open-streetview]');
+        if (!btn || btn.dataset.bound === '1') return;
+        btn.dataset.bound = '1';
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          openStreetViewFs(btn.dataset.streetviewUrl, btn.dataset.streetviewTitle || rawTitle);
+        });
+      });
 
       if (marker) infoWindow.open({ map, anchor: marker });
       else {

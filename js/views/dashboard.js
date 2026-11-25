@@ -18,13 +18,33 @@ import {
 import {
   listSavedPlaces,
   listSavedRoutes,
+  listSavedCommunity,
   isPlaceSaved,
   isRouteSaved,
+  isCommunitySaved,
   toggleSavedPlace,
   toggleSavedRoute,
+  toggleSavedCommunity,
   removeSavedPlace,
   removeSavedRoute,
+  removeSavedCommunity,
 } from '../lib/saved.js';
+import {
+  getUserProfile,
+  hydrateUserProfile,
+  saveUserProfile,
+  saveUserResume,
+  getUserResumeBlob,
+  removeUserResume,
+  resumeLimitLabel,
+  formatFileSize,
+} from '../lib/user-profile.js';
+import {
+  EMERGENCY_SEED,
+  ensureEmergencyContactsCached,
+  groupEmergencyContacts,
+  telHref,
+} from '../lib/emergency-contacts.js';
 
 const TABS = [
   { id: 'map', label: 'Map', icon: iconMap },
@@ -46,6 +66,39 @@ const MAP_CATEGORIES = [
   { id: 'terminals', label: 'Terminals' },
 ];
 
+function renderEmergencyRows(list) {
+  return list.map((item) => `
+    <div class="map-emergency-row" data-emergency-id="${escapeHtml(item.id)}">
+      <div class="map-emergency-copy">
+        <strong>${escapeHtml(item.name)}</strong>
+        <a class="map-emergency-phone" href="${escapeHtml(telHref(item.phone))}">${escapeHtml(item.phone)}</a>
+        <span class="map-emergency-meta">${escapeHtml(item.note || '')}</span>
+      </div>
+      <a class="map-emergency-call" href="${escapeHtml(telHref(item.phone))}" aria-label="Call ${escapeHtml(item.name)}">Call</a>
+    </div>
+  `).join('');
+}
+
+function renderEmergencyListHtml(contacts = EMERGENCY_SEED) {
+  const { hospitals, police } = groupEmergencyContacts(contacts);
+  return `
+    <section class="map-emergency-group" aria-label="Hospital">
+      <div class="map-emergency-group-head">
+        <h3 class="map-emergency-group-title">Hospital</h3>
+        <button type="button" class="map-emergency-map" data-emergency-category="hospitals">Map</button>
+      </div>
+      <div class="map-emergency-rows">${renderEmergencyRows(hospitals)}</div>
+    </section>
+    <section class="map-emergency-group" aria-label="Police">
+      <div class="map-emergency-group-head">
+        <h3 class="map-emergency-group-title">Police</h3>
+        <button type="button" class="map-emergency-map" data-emergency-category="police">Map</button>
+      </div>
+      <div class="map-emergency-rows">${renderEmergencyRows(police)}</div>
+    </section>
+  `;
+}
+
 const TOURIST_SPOTS = [
   {
     id: 'lake-danao',
@@ -53,21 +106,15 @@ const TOURIST_SPOTS = [
     category: 'Nature park',
     rating: 4.6,
     reviews: 367,
-    image: 'public/assets/images/ormoc/01-lake-danao.jpg',
+    image: 'public/assets/images/ormoc/lake-danao/01-lake-danao.jpg',
+    images: [
+      'public/assets/images/ormoc/lake-danao/01-lake-danao.jpg',
+      'public/assets/images/ormoc/lake-danao/02-lake-danao-park.jpg',
+      'public/assets/images/ormoc/lake-danao/04-calm-reflection.jpg',
+    ],
     lat: 11.0653,
     lon: 124.70381,
     blurb: 'Guitar-shaped highland lake',
-  },
-  {
-    id: 'lake-danao-park',
-    name: 'Lake Danao Park Views',
-    category: 'Scenic lookout',
-    rating: 4.5,
-    reviews: 128,
-    image: 'public/assets/images/ormoc/02-lake-danao-park.jpg',
-    lat: 11.06177,
-    lon: 124.70286,
-    blurb: 'Cool mountain scenery',
   },
   {
     id: 'ormoc-bay',
@@ -92,36 +139,17 @@ const TOURIST_SPOTS = [
     blurb: 'City plaza landmark',
   },
   {
-    id: 'scenic-route',
-    name: 'Scenic Highland Route',
-    category: 'Drive / trek',
-    rating: 4.7,
-    reviews: 88,
-    image: 'public/assets/images/ormoc/03-scenic-route.jpg',
-    lat: 11.04,
-    lon: 124.66,
-    blurb: 'Pineapple farms & peaks',
-  },
-  {
-    id: 'calm-reflection',
-    name: 'Calm Water Reflection',
-    category: 'Photo spot',
-    rating: 4.5,
-    reviews: 64,
-    image: 'public/assets/images/ormoc/04-calm-reflection.jpg',
-    lat: 11.063,
-    lon: 124.701,
-    blurb: 'Quiet lakeside photos',
-  },
-  {
     id: 'heavens-peak',
     name: "Heaven's Peak",
     category: 'Adventure',
     rating: 4.5,
     reviews: 86,
-    image: 'public/assets/images/ormoc/06-ormoc-philippines.jpg',
-    lat: 11.09,
-    lon: 124.69,
+    image: 'public/assets/images/ormoc/heavens-peak/01-highland-view.jpg',
+    images: [
+      'public/assets/images/ormoc/heavens-peak/01-highland-view.jpg',
+    ],
+    lat: 11.0837842,
+    lon: 124.7215256,
     blurb: 'Hilltop overlook',
   },
   {
@@ -136,6 +164,11 @@ const TOURIST_SPOTS = [
     blurb: 'Shops & city energy',
   },
 ];
+
+function spotImageList(spot) {
+  if (Array.isArray(spot?.images) && spot.images.length) return spot.images;
+  return spot?.image ? [spot.image] : [];
+}
 
 function displayName(user) {
   const meta = user?.user_metadata || {};
@@ -266,6 +299,7 @@ function renderMapPanel() {
           ${chips}
         </div>
 
+        <div class="map-side-tools">
         <div class="map-layers" id="map-layers">
           <button type="button" class="map-layers-btn" id="map-layers-btn" aria-label="Map layers" aria-haspopup="dialog" aria-expanded="false" aria-controls="map-layers-sheet">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -301,10 +335,46 @@ function renderMapPanel() {
             </div>
           </div>
         </div>
+        <button type="button" class="map-saved-btn" id="map-saved-btn" aria-label="Open saved places and routes">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 4.8h10a1.2 1.2 0 0 1 1.2 1.2v13.1L12 15.7 5.8 19.1V6A1.2 1.2 0 0 1 7 4.8Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button type="button" class="map-tourist-btn" id="map-tourist-btn" aria-label="Show tourist spots" aria-pressed="false" aria-controls="tourist-rail">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 21s-7-5.4-7-11a7 7 0 1 1 14 0c0 5.6-7 11-7 11Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            <circle cx="12" cy="10" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+          </svg>
+        </button>
+        <button type="button" class="map-emergency-btn" id="map-emergency-btn" aria-label="Emergency contacts" aria-haspopup="dialog" aria-expanded="false" aria-controls="map-emergency-modal">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3.5 20 20H4L12 3.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            <path d="M12 10v4.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <circle cx="12" cy="17" r="1" fill="currentColor"/>
+          </svg>
+        </button>
+        </div>
       </div>
 
       <div class="map-status" id="map-status" aria-live="polite">
         Loading Google Maps…
+      </div>
+
+      <div class="map-emergency-modal" id="map-emergency-modal" hidden>
+        <button type="button" class="map-emergency-backdrop" data-emergency-close aria-label="Close emergency contacts"></button>
+        <div class="map-emergency-panel" role="dialog" aria-modal="true" aria-labelledby="map-emergency-title">
+          <div class="map-emergency-handle" aria-hidden="true"></div>
+          <header class="map-emergency-header">
+            <div>
+              <h2 class="map-emergency-title" id="map-emergency-title">Emergency</h2>
+              <p class="map-emergency-note">Offline-ready sample numbers · Hospital &amp; police</p>
+            </div>
+            <button type="button" class="map-emergency-close" data-emergency-close aria-label="Close">Close</button>
+          </header>
+          <div class="map-emergency-list" id="map-emergency-list">
+            ${renderEmergencyListHtml(EMERGENCY_SEED)}
+          </div>
+        </div>
       </div>
     </section>
   `;
@@ -443,7 +513,6 @@ const COMMUNITY_FILTERS = [
   { id: 'alert', label: 'Alerts' },
   { id: 'event', label: 'Events' },
   { id: 'tip', label: 'Tips' },
-  { id: 'place', label: 'Places' },
   { id: 'jobs', label: 'Jobs' },
 ];
 
@@ -476,16 +545,16 @@ const COMMUNITY_POSTS = [
     author: 'Mae R.',
     when: 'Yesterday',
     place: 'Lake Danao',
-    image: 'public/assets/images/ormoc/01-lake-danao.jpg',
+    image: 'public/assets/images/ormoc/lake-danao/01-lake-danao.jpg',
   },
   {
     id: 'p4',
-    type: 'place',
-    title: 'Ormoc Port update',
-    body: 'Ferry tickets sell out on long weekends. Arrive early or book the day before if you can.',
-    author: 'Port Desk',
+    type: 'alert',
+    title: 'Heavy rain advisory',
+    body: 'Scattered thunderstorms expected tonight through tomorrow morning. Avoid low-lying roads near the riverbank.',
+    author: 'City Disaster Desk',
     when: 'Yesterday',
-    place: 'Ormoc Port',
+    place: 'Citywide',
     image: 'public/assets/images/ormoc/05-ormoc-bay.jpg',
   },
   {
@@ -508,29 +577,82 @@ const COMMUNITY_POSTS = [
     place: 'District 8',
     image: 'public/assets/images/ormoc/1000011172.jpg',
   },
+  {
+    id: 'p7',
+    type: 'tip',
+    title: 'Ferry tickets tip',
+    body: 'Tickets sell out on long weekends. Arrive early or book the day before if you can.',
+    author: 'Port Desk',
+    when: '3d ago',
+    place: 'Ormoc Port',
+    image: 'public/assets/images/ormoc/06-ormoc-philippines.jpg',
+  },
+  {
+    id: 'p8',
+    type: 'event',
+    title: "Heaven's Peak sunrise hike",
+    body: 'Guided sunrise walk this Saturday. Meet at the trailhead by 4:30 AM — bring a light jacket.',
+    author: 'Trail Crew',
+    when: '4d ago',
+    place: "Heaven's Peak",
+    image: 'public/assets/images/ormoc/heavens-peak/01-mountain-overlook.jpg',
+  },
+  {
+    id: 'p9',
+    type: 'alert',
+    title: 'Power interruption notice',
+    body: 'Scheduled maintenance Saturday 1–4 AM along Lopez Jaena. Prepare chargers and lamps ahead of time.',
+    author: 'Local Utility',
+    when: '5d ago',
+    place: 'Lopez Jaena',
+    image: 'public/assets/images/ormoc/08-lopez-jaena.jpg',
+  },
 ];
 
 const COMMUNITY_JOBS = [
   {
     id: 'j1',
     title: 'Café barista',
-    company: 'Local coffee shop · Ormoc',
-    meta: 'Part-time · Walk-in',
-    image: 'public/assets/images/ormoc/09-dawn-blue.jpg',
+    company: 'Harbor Brew',
+    location: 'Ormoc City Proper',
+    meta: 'Part-time · On-site',
+    posted: '1d ago',
+    applicants: '12 applicants',
+    easyApply: true,
+    logo: 'https://www.google.com/s2/favicons?domain=starbucks.com&sz=128',
   },
   {
     id: 'j2',
     title: 'Sales associate',
-    company: 'Retail · City proper',
+    company: 'City Retail Hub',
+    location: 'Real Street',
     meta: 'Full-time · Entry level',
-    image: 'public/assets/images/ormoc/11-real-st.jpg',
+    posted: '2d ago',
+    applicants: '28 applicants',
+    easyApply: true,
+    logo: 'https://www.google.com/s2/favicons?domain=nike.com&sz=128',
   },
   {
     id: 'j3',
     title: 'Tour guide helper',
-    company: 'Lake Danao area',
+    company: 'Lake Danao Trails',
+    location: 'Lake Danao',
     meta: 'Weekend · Seasonal',
-    image: 'public/assets/images/ormoc/02-lake-danao-park.jpg',
+    posted: '3d ago',
+    applicants: '8 applicants',
+    easyApply: false,
+    logo: 'https://www.google.com/s2/favicons?domain=tripadvisor.com&sz=128',
+  },
+  {
+    id: 'j4',
+    title: 'Front desk associate',
+    company: 'Bayview Inn',
+    location: 'Ormoc Bay area',
+    meta: 'Full-time · Customer service',
+    posted: '4d ago',
+    applicants: '19 applicants',
+    easyApply: true,
+    logo: 'https://www.google.com/s2/favicons?domain=marriott.com&sz=128',
   },
 ];
 
@@ -538,48 +660,84 @@ function communityTypeLabel(type) {
   if (type === 'alert') return 'Alert';
   if (type === 'event') return 'Event';
   if (type === 'tip') return 'Tip';
-  if (type === 'place') return 'Place';
   return 'Update';
 }
 
+function communityAuthorInitials(name) {
+  const parts = String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase();
+}
+
 function renderCommunityPost(post) {
+  const saved = isCommunitySaved(post);
   const media = post.image
     ? `<img class="community-post-img" src="${escapeHtml(post.image)}" alt="" loading="lazy" decoding="async">`
     : '';
   return `
-    <article class="community-post${post.image ? ' has-media' : ''}" data-community-type="${escapeHtml(post.type)}">
-      ${media}
-      <div class="community-post-content">
-        <div class="community-post-top">
-          <span class="community-tag community-tag--${escapeHtml(post.type)}">${escapeHtml(communityTypeLabel(post.type))}</span>
+    <article class="community-post community-post--${escapeHtml(post.type)}${post.image ? ' has-media' : ''}${saved ? ' is-saved' : ''}" data-community-type="${escapeHtml(post.type)}" data-community-id="${escapeHtml(post.id)}">
+      <div class="community-post-top">
+        <span class="community-tag community-tag--${escapeHtml(post.type)}">${escapeHtml(communityTypeLabel(post.type))}</span>
+        <div class="community-post-top-actions">
           <span class="community-when">${escapeHtml(post.when)}</span>
-        </div>
-        <h3 class="community-post-title">${escapeHtml(post.title)}</h3>
-        <p class="community-post-body">${escapeHtml(post.body)}</p>
-        <div class="community-post-meta">
-          <span>${escapeHtml(post.author)}</span>
-          <span aria-hidden="true">·</span>
-          <span>${escapeHtml(post.place)}</span>
+          <button
+            type="button"
+            class="community-post-save${saved ? ' is-saved' : ''}"
+            data-community-save="${escapeHtml(post.id)}"
+            aria-label="${saved ? 'Remove from saved' : 'Save update'}"
+            aria-pressed="${saved ? 'true' : 'false'}"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="${saved ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+          </button>
         </div>
       </div>
+      <h3 class="community-post-title">${escapeHtml(post.title)}</h3>
+      <p class="community-post-body">${escapeHtml(post.body)}</p>
+      ${media}
+      <p class="community-post-meta">
+        <span>${escapeHtml(post.author)}</span>
+        <span aria-hidden="true">·</span>
+        <span>${escapeHtml(post.place)}</span>
+      </p>
     </article>
   `;
 }
 
 function renderCommunityJob(job) {
-  const media = job.image
-    ? `<img class="community-job-img" src="${escapeHtml(job.image)}" alt="" loading="lazy" decoding="async">`
-    : '';
+  const saved = isCommunitySaved({ ...job, kind: 'job' });
+  const initials = escapeHtml(communityAuthorInitials(job.company));
+  const logoInner = job.logo
+    ? `<img class="community-job-logo-img" src="${escapeHtml(job.logo)}" alt="" width="48" height="48" loading="lazy" decoding="async" referrerpolicy="no-referrer">`
+    : `<span class="community-job-logo-fallback" aria-hidden="true">${initials}</span>`;
+  const applyLabel = job.easyApply ? 'Easy Apply' : 'Apply';
   return `
-    <article class="community-job is-soon${job.image ? ' has-media' : ''}" aria-disabled="true">
-      ${media}
+    <article class="community-job${saved ? ' is-saved' : ''}" data-community-job="${escapeHtml(job.id)}">
+      <div class="community-job-logo" aria-hidden="true" data-job-logo="${escapeHtml(initials)}">
+        ${logoInner}
+      </div>
       <div class="community-job-content">
-        <div class="community-job-top">
-          <h3 class="community-job-title">${escapeHtml(job.title)}</h3>
-          <span class="community-soon-pill">Coming soon</span>
-        </div>
+        <h3 class="community-job-title">${escapeHtml(job.title)}</h3>
         <p class="community-job-company">${escapeHtml(job.company)}</p>
-        <p class="community-job-meta">${escapeHtml(job.meta)}</p>
+        <p class="community-job-meta">${escapeHtml(job.location)} · ${escapeHtml(job.meta)}</p>
+        <p class="community-job-stats">${escapeHtml(job.posted)} · ${escapeHtml(job.applicants)}</p>
+      </div>
+      <div class="community-job-actions">
+        <button type="button" class="community-job-apply${job.easyApply ? ' community-job-apply--easy' : ''}" data-job-apply="${escapeHtml(job.id)}">
+          ${escapeHtml(applyLabel)}
+        </button>
+        <button
+          type="button"
+          class="community-job-save${saved ? ' is-saved' : ''}"
+          data-job-save="${escapeHtml(job.id)}"
+          aria-label="${saved ? 'Remove from saved' : 'Save job'}"
+          aria-pressed="${saved ? 'true' : 'false'}"
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="${saved ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        </button>
       </div>
     </article>
   `;
@@ -602,14 +760,10 @@ function renderCommunityPanel() {
       <div class="community-screen">
         <div class="community-chrome">
           <header class="community-top">
-            <div>
+            <div class="community-top-copy">
               <h1 class="community-title">Community</h1>
-              <p class="community-copy">Local updates, tips, place notes, and jobs for Ormoc.</p>
+              <p class="community-copy">Alerts, events, tips, and local jobs in Ormoc.</p>
             </div>
-            <button type="button" class="community-compose" id="community-compose" disabled title="Coming soon">
-              Post
-              <span class="community-soon-pill">Soon</span>
-            </button>
           </header>
 
           <div class="community-filters" role="toolbar" aria-label="Community filters">
@@ -624,8 +778,8 @@ function renderCommunityPanel() {
 
           <div class="community-section community-section--jobs" data-community-section="jobs" hidden>
             <div class="community-jobs-banner">
-              <strong>Jobs board</strong>
-              <span>Listings are preview only — hiring tools are coming soon.</span>
+              <strong>Jobs near Ormoc</strong>
+              <span>${COMMUNITY_JOBS.length} openings</span>
             </div>
             ${COMMUNITY_JOBS.map(renderCommunityJob).join('')}
           </div>
@@ -635,85 +789,192 @@ function renderCommunityPanel() {
   `;
 }
 
+function renderProfileSkills(skills = []) {
+  if (!skills.length) {
+    return `<p class="more-profile-empty">Add skills so local jobs can know what you do.</p>`;
+  }
+  return `<div class="more-skill-chips">${skills.map((skill) => `<span class="more-skill-chip">${escapeHtml(skill)}</span>`).join('')}</div>`;
+}
+
+function renderResumeSummary(resume) {
+  if (!resume?.name) {
+    return `<p class="profile-resume-empty">No resume uploaded yet.</p>`;
+  }
+  return `
+    <div class="profile-resume-file">
+      <div class="profile-resume-copy">
+        <strong>${escapeHtml(resume.name)}</strong>
+        <span>${escapeHtml(formatFileSize(resume.size))} · ${escapeHtml((resume.type || 'file').split('/').pop() || 'file')}</span>
+      </div>
+      <div class="profile-resume-actions">
+        <button type="button" class="profile-resume-btn" data-profile-resume-download>Download</button>
+        <button type="button" class="profile-resume-btn profile-resume-btn--danger" data-profile-resume-remove>Remove</button>
+      </div>
+    </div>
+  `;
+}
+
 function renderMorePanel(user) {
-  const rawName = displayName(user);
+  const profile = getUserProfile(user);
+  const rawName = profile.fullName || displayName(user);
   const name = escapeHtml(rawName);
   const email = escapeHtml(user?.email || '');
   const appName = escapeHtml(getAppName());
   const version = escapeHtml(getEnv().APP_VERSION || '0.1.0');
   const photo = profilePhotoUrl(user);
+  const aboutPreview = profile.about
+    ? `<p class="more-profile-about">${escapeHtml(profile.about)}</p>`
+    : `<p class="more-profile-empty">Tell employers a bit about yourself.</p>`;
   const avatar = photo
     ? `<img class="more-avatar-img" src="${escapeHtml(photo)}" alt="" width="64" height="64" referrerpolicy="no-referrer" decoding="async">`
     : `<span class="more-avatar-initials">${escapeHtml(initials(rawName))}</span>`;
+  const skillInputs = profile.skills.map((skill) => `
+    <li class="profile-skill-item">
+      <span>${escapeHtml(skill)}</span>
+      <button type="button" class="profile-skill-remove" data-profile-skill-remove="${escapeHtml(skill)}" aria-label="Remove ${escapeHtml(skill)}">×</button>
+    </li>
+  `).join('');
+
   return `
     <section class="dash-panel dash-panel--more" data-panel="more" aria-label="More" hidden>
-      <div class="more-screen">
-        <header class="more-hero">
-          <p class="more-kicker">${appName}</p>
-          <div class="more-profile">
-            <div class="more-avatar${photo ? ' more-avatar--photo' : ''}" aria-hidden="true">${avatar}</div>
-            <div class="more-profile-copy">
-              <h1 class="more-title">${name}</h1>
-              <p class="more-email">${email || `Signed in to ${appName}`}</p>
-            </div>
-          </div>
-        </header>
-
-        <div class="more-body">
-          <section class="more-group" aria-label="About">
-            <h2 class="more-group-title">About</h2>
-            <div class="more-list">
-              <button type="button" class="more-row" data-more-sheet="inside">
-                <span class="more-row-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
-                </span>
-                <span class="more-row-copy">
-                  <strong>What's inside</strong>
-                  <span>How OrmocGo helps locals and visitors</span>
-                </span>
-                <span class="more-row-chevron" aria-hidden="true">›</span>
-              </button>
-              <button type="button" class="more-row" data-more-sheet="support">
-                <span class="more-row-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v10H7l-3 3V6Z"/></svg>
-                </span>
-                <span class="more-row-copy">
-                  <strong>Support</strong>
-                  <span>Help, feedback, and contact</span>
-                </span>
-                <span class="more-row-chevron" aria-hidden="true">›</span>
-              </button>
-              <button type="button" class="more-row" data-more-sheet="terms">
-                <span class="more-row-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h8l4 4v14H7V3Z"/><path d="M15 3v4h4M9 12h6M9 16h6"/></svg>
-                </span>
-                <span class="more-row-copy">
-                  <strong>Terms &amp; Condition</strong>
-                  <span>Community project guidelines</span>
-                </span>
-                <span class="more-row-chevron" aria-hidden="true">›</span>
-              </button>
-            </div>
-          </section>
-
-          <section class="more-group" aria-label="App">
-            <h2 class="more-group-title">App</h2>
-            <div class="more-list">
-              <div class="more-row more-row--static">
-                <span class="more-row-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="18" rx="2"/><path d="M10 17h4"/></svg>
-                </span>
-                <span class="more-row-copy">
-                  <strong>Version</strong>
-                  <span>${appName} mobile guide</span>
-                </span>
-                <span class="more-row-meta">${version}</span>
+      <div class="more-screen" data-more-view="home">
+        <div class="more-home" data-more-pane="home">
+          <header class="more-hero">
+            <p class="more-kicker">${appName}</p>
+            <div class="more-profile">
+              <div class="more-avatar${photo ? ' more-avatar--photo' : ''}" aria-hidden="true">${avatar}</div>
+              <div class="more-profile-copy">
+                <h1 class="more-title" data-more-display-name>${name}</h1>
+                <p class="more-email">${email || `Signed in to ${appName}`}</p>
               </div>
             </div>
-          </section>
+            <div class="more-profile-summary" data-more-profile-summary>
+              ${aboutPreview}
+              <div data-more-skills-preview>${renderProfileSkills(profile.skills)}</div>
+            </div>
+          </header>
 
-          <button type="button" class="more-signout" id="dashboard-signout">Sign out</button>
-          <p class="more-footnote">Non-profit · Ad-free · Made for Ormoc</p>
+          <div class="more-body">
+            <section class="more-group" aria-label="Profile">
+              <h2 class="more-group-title">Profile</h2>
+              <div class="more-list">
+                <button type="button" class="more-row" data-more-open-profile>
+                  <span class="more-row-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z"/><path d="M4 20a8 8 0 0 1 16 0"/><path d="M16.5 5.5 18 7l3-3"/></svg>
+                  </span>
+                  <span class="more-row-copy">
+                    <strong>Edit profile</strong>
+                    <span>About you, skills, and resume</span>
+                  </span>
+                  <span class="more-row-chevron" aria-hidden="true">›</span>
+                </button>
+              </div>
+            </section>
+
+            <section class="more-group" aria-label="About">
+              <h2 class="more-group-title">About</h2>
+              <div class="more-list">
+                <button type="button" class="more-row" data-more-sheet="inside">
+                  <span class="more-row-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+                  </span>
+                  <span class="more-row-copy">
+                    <strong>What's inside</strong>
+                    <span>How OrmocGo helps locals and visitors</span>
+                  </span>
+                  <span class="more-row-chevron" aria-hidden="true">›</span>
+                </button>
+                <button type="button" class="more-row" data-more-sheet="support">
+                  <span class="more-row-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v10H7l-3 3V6Z"/></svg>
+                  </span>
+                  <span class="more-row-copy">
+                    <strong>Support</strong>
+                    <span>Help, feedback, and contact</span>
+                  </span>
+                  <span class="more-row-chevron" aria-hidden="true">›</span>
+                </button>
+                <button type="button" class="more-row" data-more-sheet="terms">
+                  <span class="more-row-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h8l4 4v14H7V3Z"/><path d="M15 3v4h4M9 12h6M9 16h6"/></svg>
+                  </span>
+                  <span class="more-row-copy">
+                    <strong>Terms &amp; Condition</strong>
+                    <span>Community project guidelines</span>
+                  </span>
+                  <span class="more-row-chevron" aria-hidden="true">›</span>
+                </button>
+              </div>
+            </section>
+
+            <section class="more-group" aria-label="App">
+              <h2 class="more-group-title">App</h2>
+              <div class="more-list">
+                <div class="more-row more-row--static">
+                  <span class="more-row-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="18" rx="2"/><path d="M10 17h4"/></svg>
+                  </span>
+                  <span class="more-row-copy">
+                    <strong>Version</strong>
+                    <span>${appName} mobile guide</span>
+                  </span>
+                  <span class="more-row-meta">${version}</span>
+                </div>
+              </div>
+            </section>
+
+            <button type="button" class="more-signout" id="dashboard-signout">Sign out</button>
+            <p class="more-footnote">Non-profit · Ad-free · Made for Ormoc</p>
+          </div>
+        </div>
+
+        <div class="more-profile-edit" data-more-pane="profile" hidden>
+          <header class="profile-edit-top">
+            <button type="button" class="profile-back" data-more-close-profile aria-label="Back">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6 9 12l6 6"/></svg>
+              Back
+            </button>
+            <h2 class="profile-edit-title">Edit profile</h2>
+            <p class="profile-edit-copy">Share your about, skills, and resume for local jobs.</p>
+          </header>
+
+          <form class="profile-form" id="profile-edit-form" novalidate>
+            <label class="profile-field">
+              <span class="profile-label">Display name</span>
+              <input type="text" name="fullName" id="profile-fullname" maxlength="80" value="${escapeHtml(profile.fullName || rawName)}" placeholder="Your name" autocomplete="name">
+            </label>
+
+            <label class="profile-field">
+              <span class="profile-label">About</span>
+              <textarea name="about" id="profile-about" rows="5" maxlength="1200" placeholder="A short intro about your work, experience, or what you're looking for.">${escapeHtml(profile.about || '')}</textarea>
+            </label>
+
+            <div class="profile-field">
+              <span class="profile-label">Skills</span>
+              <div class="profile-skill-row">
+                <input type="text" id="profile-skill-input" maxlength="40" placeholder="e.g. Barista, Sales, Tour guide" autocomplete="off">
+                <button type="button" class="profile-skill-add" id="profile-skill-add">Add</button>
+              </div>
+              <ul class="profile-skill-list" id="profile-skill-list">${skillInputs}</ul>
+              <p class="profile-hint">Add up to 24 skills. Tap × to remove one.</p>
+            </div>
+
+            <div class="profile-field">
+              <span class="profile-label">Resume</span>
+              <p class="profile-hint">${escapeHtml(resumeLimitLabel())}</p>
+              <div class="profile-resume-box" data-profile-resume-box>
+                ${renderResumeSummary(profile.resume)}
+              </div>
+              <label class="profile-upload">
+                <input type="file" id="profile-resume-input" accept=".pdf,.doc,.docx,.txt,.rtf,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,application/rtf,text/rtf" hidden>
+                <span>Upload resume</span>
+              </label>
+              <p class="profile-resume-status" id="profile-resume-status" aria-live="polite"></p>
+            </div>
+
+            <p class="profile-form-status" id="profile-form-status" aria-live="polite"></p>
+            <button type="submit" class="profile-save-btn">Save profile</button>
+          </form>
         </div>
       </div>
     </section>
@@ -722,17 +983,17 @@ function renderMorePanel(user) {
 
 function renderSavedPlaceItem(place) {
   const rating = place.rating != null
-    ? `<span class="saved-item-rating">${Number(place.rating).toFixed(1)}★</span>`
-    : '';
+    ? `<span class="saved-item-meta saved-item-meta--rating">${Number(place.rating).toFixed(1)}★ · ${escapeHtml(place.category || 'Place')}</span>`
+    : `<span class="saved-item-meta">${escapeHtml(place.category || 'Saved place')}</span>`;
   const thumb = place.image
-    ? `<img class="saved-item-thumb" src="${escapeHtml(place.image)}" alt="" loading="lazy">`
+    ? `<img class="saved-item-thumb" src="${escapeHtml(place.image)}" alt="" loading="lazy" decoding="async">`
     : `<span class="saved-item-thumb saved-item-thumb--empty" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg></span>`;
   return `
     <article class="saved-item" data-saved-place="${escapeHtml(place.id)}">
       ${thumb}
       <button type="button" class="saved-item-main" data-saved-open-place="${escapeHtml(place.id)}">
         <strong>${escapeHtml(place.name)}</strong>
-        <span>${escapeHtml(place.display_name || place.category || 'Saved place')}</span>
+        <span class="saved-item-sub">${escapeHtml(place.display_name || place.category || 'Saved place')}</span>
         ${rating}
       </button>
       <button type="button" class="saved-item-remove" data-saved-remove-place="${escapeHtml(place.id)}" aria-label="Remove ${escapeHtml(place.name)}">
@@ -750,10 +1011,37 @@ function renderSavedRouteItem(route) {
       <span class="saved-item-thumb saved-item-thumb--route" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
       <button type="button" class="saved-item-main" data-saved-open-route="${escapeHtml(route.id)}">
         <strong>${escapeHtml(route.to?.label || 'Destination')}</strong>
-        <span>From ${escapeHtml(route.from?.label || 'Start')}</span>
-        <span class="saved-item-rating">${escapeHtml(route.modeLabel || 'Route')} · ${escapeHtml(mins)} · ${escapeHtml(String(km))} km</span>
+        <span class="saved-item-sub">From ${escapeHtml(route.from?.label || 'Start')}</span>
+        <span class="saved-item-meta">${escapeHtml(route.modeLabel || 'Route')} · ${escapeHtml(mins)} · ${escapeHtml(String(km))} km</span>
       </button>
       <button type="button" class="saved-item-remove" data-saved-remove-route="${escapeHtml(route.id)}" aria-label="Remove saved route">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </article>
+  `;
+}
+
+function renderSavedCommunityItem(item) {
+  const isJob = item.kind === 'job';
+  const label = isJob ? 'Job' : communityTypeLabel(item.type);
+  const sub = isJob
+    ? `${item.company || ''}${item.location ? ` · ${item.location}` : ''}`
+    : (item.body || item.author || 'Community update');
+  const meta = isJob
+    ? (item.meta || item.when || 'Saved job')
+    : `${item.author || 'Community'}${item.place ? ` · ${item.place}` : ''}`;
+  const thumb = item.image
+    ? `<img class="saved-item-thumb" src="${escapeHtml(item.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">`
+    : `<span class="saved-item-thumb saved-item-thumb--${isJob ? 'route' : 'empty'}" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="${isJob ? 'M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z' : 'M4 6h16M4 12h16M4 18h10'}"/></svg></span>`;
+  return `
+    <article class="saved-item saved-item--community" data-saved-community="${escapeHtml(item.id)}">
+      ${thumb}
+      <button type="button" class="saved-item-main" data-saved-open-community="${escapeHtml(item.id)}" data-saved-community-kind="${escapeHtml(item.kind || 'post')}">
+        <strong>${escapeHtml(item.title)}</strong>
+        <span class="saved-item-sub">${escapeHtml(sub)}</span>
+        <span class="saved-item-meta">${escapeHtml(label)} · ${escapeHtml(meta)}</span>
+      </button>
+      <button type="button" class="saved-item-remove" data-saved-remove-community="${escapeHtml(item.id)}" aria-label="Remove ${escapeHtml(item.title)}">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
       </button>
     </article>
@@ -768,17 +1056,19 @@ function renderSavedPanel() {
           <header class="saved-top">
             <div>
               <h1 class="saved-title">Saved</h1>
-              <p class="saved-copy">Your favorite places and routes in Ormoc.</p>
+              <p class="saved-copy">Places, routes, and community items you starred.</p>
             </div>
           </header>
           <div class="saved-filters" role="toolbar" aria-label="Saved filters">
             <button type="button" class="saved-filter is-active" data-saved-filter="places" aria-pressed="true">Places</button>
             <button type="button" class="saved-filter" data-saved-filter="routes" aria-pressed="false">Routes</button>
+            <button type="button" class="saved-filter" data-saved-filter="community" aria-pressed="false">Community</button>
           </div>
         </div>
         <div class="saved-feed" id="saved-feed">
           <div class="saved-section" data-saved-section="places"></div>
           <div class="saved-section" data-saved-section="routes" hidden></div>
+          <div class="saved-section" data-saved-section="community" hidden></div>
         </div>
       </div>
     </section>
@@ -797,12 +1087,11 @@ function starsMarkup(rating) {
   return parts.join('');
 }
 
-function renderTouristRail() {
-  const cards = TOURIST_SPOTS.map((spot) => {
-    const saved = isPlaceSaved(spot);
-    const preview = spot.image || '';
+function renderTouristCardMedia(spot) {
+  const photos = spotImageList(spot);
+  const preview = photos[0] || '';
+  if (photos.length <= 1) {
     return `
-    <article class="tourist-card${saved ? ' is-saved' : ''}" data-tourist-id="${escapeHtml(spot.id)}">
       <div class="tourist-card-media" aria-hidden="true">
         <img
           class="tourist-card-img"
@@ -816,6 +1105,42 @@ function renderTouristRail() {
           onerror="if(this.dataset.fallbackSrc&&this.src!==this.dataset.fallbackSrc){this.src=this.dataset.fallbackSrc}else{this.onerror=null;this.classList.add('is-broken')}"
         >
       </div>
+    `;
+  }
+
+  const slides = photos.map((src, index) => `
+    <div class="tourist-card-slide${index === 0 ? ' is-active' : ''}" data-card-slide="${index}">
+      <img
+        class="tourist-card-img"
+        src="${escapeHtml(src)}"
+        alt=""
+        loading="${index === 0 ? 'eager' : 'lazy'}"
+        decoding="async"
+        referrerpolicy="no-referrer-when-downgrade"
+      >
+    </div>
+  `).join('');
+
+  const dots = photos.map((_, index) => `
+    <span class="tourist-card-dot${index === 0 ? ' is-active' : ''}" data-card-dot="${index}"></span>
+  `).join('');
+
+  return `
+    <div class="tourist-card-media is-slideshow" data-tourist-slideshow="${escapeHtml(spot.id)}" aria-hidden="true">
+      <div class="tourist-card-track">
+        ${slides}
+      </div>
+      <div class="tourist-card-dots">${dots}</div>
+    </div>
+  `;
+}
+
+function renderTouristRail() {
+  const cards = TOURIST_SPOTS.map((spot) => {
+    const saved = isPlaceSaved(spot);
+    return `
+    <article class="tourist-card${saved ? ' is-saved' : ''}" data-tourist-id="${escapeHtml(spot.id)}">
+      ${renderTouristCardMedia(spot)}
       <button type="button" class="tourist-card-main" data-tourist-open="${escapeHtml(spot.id)}" aria-label="${escapeHtml(spot.name)}, ${spot.rating} stars">
         <span class="tourist-card-body">
           <span class="tourist-card-cat">${escapeHtml(spot.category)}</span>
@@ -842,22 +1167,16 @@ function renderTouristRail() {
   }).join('');
 
   return `
-    <div class="tourist-stack">
-      <div class="tourist-welcome" aria-hidden="true">
-        <img
-          class="tourist-welcome-mascot"
-          src="public/assets/icons/welcome-chibi.webp"
-          alt=""
-          width="140"
-          height="258"
-          decoding="async"
-          draggable="false"
-        >
-      </div>
+    <div class="tourist-stack" id="tourist-stack" hidden>
       <div class="tourist-rail" id="tourist-rail" aria-label="Tourist spots">
         <div class="tourist-rail-head">
-          <p class="tourist-rail-title">Tourist spots</p>
-          <p class="tourist-rail-sub">Top-rated places in Ormoc</p>
+          <div class="tourist-rail-copy">
+            <p class="tourist-rail-title">Tourist spots</p>
+            <p class="tourist-rail-sub">Top-rated places in Ormoc</p>
+          </div>
+          <button type="button" class="tourist-rail-close" id="tourist-rail-close" aria-label="Close tourist spots">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+          </button>
         </div>
         <div class="tourist-rail-scroller" role="list">
           ${cards}
@@ -946,11 +1265,51 @@ export function mountDashboard(root = document) {
   let activeMapType = 'google';
   let searchTimer = null;
 
+  const emergencyBtn = shell.querySelector('#map-emergency-btn');
+  const emergencyModal = shell.querySelector('#map-emergency-modal');
+  const emergencyList = shell.querySelector('#map-emergency-list');
+
+  function bindEmergencyMapButtons() {
+    emergencyModal?.querySelectorAll('[data-emergency-category]').forEach((btn) => {
+      if (btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const category = btn.getAttribute('data-emergency-category');
+        setEmergencyOpen(false);
+        if (searchInput) searchInput.value = '';
+        runCategory(category);
+        setStatus(category === 'police' ? 'Showing police nearby' : 'Showing hospitals nearby');
+      });
+    });
+  }
+
+  async function refreshEmergencyList() {
+    const contacts = await ensureEmergencyContactsCached();
+    if (emergencyList) emergencyList.innerHTML = renderEmergencyListHtml(contacts);
+    bindEmergencyMapButtons();
+    return contacts;
+  }
+
+  function setEmergencyOpen(open) {
+    if (!emergencyModal || !emergencyBtn) return;
+    const next = Boolean(open);
+    emergencyModal.hidden = !next;
+    emergencyBtn.setAttribute('aria-expanded', next ? 'true' : 'false');
+    emergencyBtn.classList.toggle('is-active', next);
+    requestAnimationFrame(() => {
+      emergencyModal.classList.toggle('is-open', next);
+    });
+    document.body.classList.toggle('emergency-sheet-open', next);
+    if (next) void refreshEmergencyList();
+  }
+
   function setLayersOpen(open) {
     if (!layersSheet || !layersBtn) return;
     layersSheet.hidden = !open;
     layersBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
     layersWrap?.classList.toggle('is-open', open);
+    if (open) setEmergencyOpen(false);
   }
 
   let statusTimer = null;
@@ -994,6 +1353,12 @@ export function mountDashboard(root = document) {
       });
     } else {
       stopRouteTracking();
+    }
+    if (tabId === 'saved') {
+      refreshSavedLists?.();
+    }
+    if (tabId !== 'more') {
+      setMoreView?.('home');
     }
   }
 
@@ -1084,9 +1449,27 @@ export function mountDashboard(root = document) {
   if (layersBtn) {
     layersBtn.addEventListener('click', (event) => {
       event.stopPropagation();
+      setEmergencyOpen(false);
       setLayersOpen(Boolean(layersSheet?.hidden));
     });
   }
+
+  if (emergencyBtn) {
+    emergencyBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      setLayersOpen(false);
+      setTouristRailOpen?.(false);
+      const isOpen = Boolean(emergencyModal && !emergencyModal.hidden && emergencyModal.classList.contains('is-open'));
+      setEmergencyOpen(!isOpen);
+    });
+  }
+
+  emergencyModal?.querySelectorAll('[data-emergency-close]').forEach((btn) => {
+    btn.addEventListener('click', () => setEmergencyOpen(false));
+  });
+
+  bindEmergencyMapButtons();
+  void refreshEmergencyList();
 
   mapTypeBtns.forEach((btn) => {
     btn.addEventListener('click', (event) => {
@@ -1096,13 +1479,16 @@ export function mountDashboard(root = document) {
   });
 
   document.addEventListener('click', (event) => {
-    if (!layersWrap?.classList.contains('is-open')) return;
-    if (layersWrap.contains(event.target)) return;
-    setLayersOpen(false);
+    if (layersWrap?.classList.contains('is-open') && !layersWrap.contains(event.target)) {
+      setLayersOpen(false);
+    }
   });
 
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') setLayersOpen(false);
+    if (event.key === 'Escape') {
+      setLayersOpen(false);
+      setEmergencyOpen(false);
+    }
   });
 
   chips.forEach((chip) => {
@@ -1114,6 +1500,44 @@ export function mountDashboard(root = document) {
 
   const touristRail = shell.querySelector('#tourist-rail');
 
+  function mountTouristCardSlideshows() {
+    if (!touristRail) return;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    touristRail.querySelectorAll('[data-tourist-slideshow]').forEach((media) => {
+      if (media.dataset.bound === '1') return;
+      media.dataset.bound = '1';
+      const slides = [...media.querySelectorAll('[data-card-slide]')];
+      const dots = [...media.querySelectorAll('[data-card-dot]')];
+      if (slides.length < 2) return;
+
+      let index = 0;
+      let timer = null;
+
+      function show(next) {
+        index = (next + slides.length) % slides.length;
+        slides.forEach((slide, i) => slide.classList.toggle('is-active', i === index));
+        dots.forEach((dot, i) => dot.classList.toggle('is-active', i === index));
+      }
+
+      function start() {
+        if (reduceMotion) return;
+        stop();
+        timer = window.setInterval(() => show(index + 1), 3200);
+      }
+
+      function stop() {
+        if (timer) {
+          window.clearInterval(timer);
+          timer = null;
+        }
+      }
+
+      media.addEventListener('pointerenter', stop);
+      media.addEventListener('pointerleave', start);
+      start();
+    });
+  }
+
   async function hydrateTouristPhotos() {
     if (!touristRail) return;
     try {
@@ -1123,6 +1547,8 @@ export function mountDashboard(root = document) {
     }
 
     await Promise.all(TOURIST_SPOTS.map(async (spot) => {
+      // Keep local album slideshows — don't replace with a single Google photo.
+      if (spotImageList(spot).length > 1) return;
       const img = touristRail.querySelector(`[data-tourist-photo="${spot.id}"]`);
       if (!img) return;
       try {
@@ -1157,6 +1583,7 @@ export function mountDashboard(root = document) {
     });
   }
 
+  mountTouristCardSlideshows();
   hydrateTouristPhotos();
 
   if (touristRail) {
@@ -1680,6 +2107,194 @@ export function mountDashboard(root = document) {
     });
   });
 
+  const moreScreen = shell.querySelector('.more-screen');
+  const moreHomePane = shell.querySelector('[data-more-pane="home"]');
+  const moreProfilePane = shell.querySelector('[data-more-pane="profile"]');
+  const profileForm = shell.querySelector('#profile-edit-form');
+  const profileNameInput = shell.querySelector('#profile-fullname');
+  const profileAboutInput = shell.querySelector('#profile-about');
+  const profileSkillInput = shell.querySelector('#profile-skill-input');
+  const profileSkillList = shell.querySelector('#profile-skill-list');
+  const profileSkillAdd = shell.querySelector('#profile-skill-add');
+  const profileResumeInput = shell.querySelector('#profile-resume-input');
+  const profileResumeBox = shell.querySelector('[data-profile-resume-box]');
+  const profileResumeStatus = shell.querySelector('#profile-resume-status');
+  const profileFormStatus = shell.querySelector('#profile-form-status');
+  const moreDisplayName = shell.querySelector('[data-more-display-name]');
+  const moreProfileSummary = shell.querySelector('[data-more-profile-summary]');
+  const moreSkillsPreview = shell.querySelector('[data-more-skills-preview]');
+  let profileSkills = [];
+  let profileUser = null;
+
+  async function ensureProfileUser() {
+    if (profileUser) return profileUser;
+    try {
+      const supabase = getSupabase();
+      const { data } = await supabase.auth.getSession();
+      profileUser = data?.session?.user || { id: 'local' };
+    } catch (_) {
+      profileUser = { id: 'local' };
+    }
+    return profileUser;
+  }
+
+  function setMoreView(view) {
+    const next = view === 'profile' ? 'profile' : 'home';
+    moreScreen?.setAttribute('data-more-view', next);
+    if (moreHomePane) moreHomePane.hidden = next !== 'home';
+    if (moreProfilePane) moreProfilePane.hidden = next !== 'profile';
+  }
+
+  function renderSkillList() {
+    if (!profileSkillList) return;
+    profileSkillList.innerHTML = profileSkills.map((skill) => `
+      <li class="profile-skill-item">
+        <span>${escapeHtml(skill)}</span>
+        <button type="button" class="profile-skill-remove" data-profile-skill-remove="${escapeHtml(skill)}" aria-label="Remove ${escapeHtml(skill)}">×</button>
+      </li>
+    `).join('');
+  }
+
+  function refreshMoreProfileSummary(profile, user) {
+    const name = profile.fullName || displayName(user);
+    if (moreDisplayName) moreDisplayName.textContent = name;
+    if (moreProfileSummary) {
+      let aboutEl = moreProfileSummary.querySelector('.more-profile-about, .more-profile-empty');
+      if (!aboutEl) {
+        aboutEl = document.createElement('p');
+        moreProfileSummary.prepend(aboutEl);
+      }
+      aboutEl.className = profile.about ? 'more-profile-about' : 'more-profile-empty';
+      aboutEl.textContent = profile.about || 'Tell employers a bit about yourself.';
+    }
+    if (moreSkillsPreview) moreSkillsPreview.innerHTML = renderProfileSkills(profile.skills);
+    if (profileResumeBox) profileResumeBox.innerHTML = renderResumeSummary(profile.resume);
+  }
+
+  async function loadProfileEditor() {
+    const user = await ensureProfileUser();
+    // Show local cache immediately, then refresh from Supabase if needed.
+    let profile = getUserProfile(user);
+    profileSkills = [...(profile.skills || [])];
+    if (profileNameInput) profileNameInput.value = profile.fullName || displayName(user);
+    if (profileAboutInput) profileAboutInput.value = profile.about || '';
+    if (profileResumeStatus) profileResumeStatus.textContent = '';
+    if (profileFormStatus) profileFormStatus.textContent = '';
+    renderSkillList();
+    if (profileResumeBox) profileResumeBox.innerHTML = renderResumeSummary(profile.resume);
+
+    profile = await hydrateUserProfile(user);
+    profileSkills = [...(profile.skills || [])];
+    if (profileNameInput) profileNameInput.value = profile.fullName || displayName(user);
+    if (profileAboutInput) profileAboutInput.value = profile.about || '';
+    renderSkillList();
+    if (profileResumeBox) profileResumeBox.innerHTML = renderResumeSummary(profile.resume);
+    refreshMoreProfileSummary(profile, user);
+  }
+
+  function addProfileSkill() {
+    const value = String(profileSkillInput?.value || '').trim();
+    if (!value) return;
+    const exists = profileSkills.some((skill) => skill.toLowerCase() === value.toLowerCase());
+    if (!exists && profileSkills.length < 24) {
+      profileSkills.push(value.slice(0, 40));
+      renderSkillList();
+    }
+    if (profileSkillInput) profileSkillInput.value = '';
+    profileSkillInput?.focus();
+  }
+
+  shell.querySelector('[data-more-open-profile]')?.addEventListener('click', async () => {
+    await loadProfileEditor();
+    setMoreView('profile');
+  });
+
+  shell.querySelector('[data-more-close-profile]')?.addEventListener('click', () => {
+    setMoreView('home');
+  });
+
+  profileSkillAdd?.addEventListener('click', addProfileSkill);
+  profileSkillInput?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      addProfileSkill();
+    }
+  });
+
+  profileSkillList?.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-profile-skill-remove]');
+    if (!btn) return;
+    const skill = btn.getAttribute('data-profile-skill-remove');
+    profileSkills = profileSkills.filter((item) => item !== skill);
+    renderSkillList();
+  });
+
+  profileResumeInput?.addEventListener('change', async () => {
+    const file = profileResumeInput.files?.[0];
+    profileResumeInput.value = '';
+    if (!file) return;
+    const user = await ensureProfileUser();
+    if (profileResumeStatus) profileResumeStatus.textContent = 'Uploading…';
+    try {
+      const profile = await saveUserResume(user, file);
+      if (profileResumeBox) profileResumeBox.innerHTML = renderResumeSummary(profile.resume);
+      if (profileResumeStatus) profileResumeStatus.textContent = 'Resume uploaded.';
+      refreshMoreProfileSummary(profile, user);
+    } catch (err) {
+      if (profileResumeStatus) profileResumeStatus.textContent = err?.message || 'Could not upload resume.';
+    }
+  });
+
+  profileResumeBox?.addEventListener('click', async (event) => {
+    const user = await ensureProfileUser();
+    if (event.target.closest('[data-profile-resume-remove]')) {
+      const profile = await removeUserResume(user);
+      if (profileResumeBox) profileResumeBox.innerHTML = renderResumeSummary(profile.resume);
+      if (profileResumeStatus) profileResumeStatus.textContent = 'Resume removed.';
+      refreshMoreProfileSummary(profile, user);
+      return;
+    }
+    if (event.target.closest('[data-profile-resume-download]')) {
+      try {
+        const blob = await getUserResumeBlob(user);
+        const profile = getUserProfile(user);
+        if (!blob) {
+          if (profileResumeStatus) profileResumeStatus.textContent = 'Resume file not found.';
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = profile.resume?.name || 'resume';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (_) {
+        if (profileResumeStatus) profileResumeStatus.textContent = 'Could not download resume.';
+      }
+    }
+  });
+
+  profileForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const user = await ensureProfileUser();
+    const profile = saveUserProfile(user, {
+      fullName: profileNameInput?.value || '',
+      about: profileAboutInput?.value || '',
+      skills: profileSkills,
+    });
+    refreshMoreProfileSummary(profile, user);
+    if (profileFormStatus) profileFormStatus.textContent = 'Profile saved.';
+    setStatus('Profile saved');
+  });
+
+  ensureProfileUser().then(async (user) => {
+    refreshMoreProfileSummary(getUserProfile(user), user);
+    const hydrated = await hydrateUserProfile(user);
+    refreshMoreProfileSummary(hydrated, user);
+  });
+
   if (signOutBtn) {
     signOutBtn.addEventListener('click', async () => {
       signOutBtn.disabled = true;
@@ -1712,12 +2327,14 @@ export function mountDashboard(root = document) {
     if (communityFeedSection) communityFeedSection.hidden = showJobs;
     if (communityJobsSection) communityJobsSection.hidden = !showJobs;
 
-    if (!showJobs) {
-      communityPosts.forEach((post) => {
-        const type = post.getAttribute('data-community-type');
-        post.hidden = next !== 'all' && type !== next;
-      });
-    }
+    communityPosts.forEach((post) => {
+      if (showJobs) {
+        post.hidden = true;
+        return;
+      }
+      const type = post.getAttribute('data-community-type');
+      post.hidden = next !== 'all' && type !== next;
+    });
   }
 
   communityFilters.forEach((btn) => {
@@ -1726,12 +2343,84 @@ export function mountDashboard(root = document) {
     });
   });
 
+  shell.querySelectorAll('[data-job-logo]').forEach((wrap) => {
+    const img = wrap.querySelector('.community-job-logo-img');
+    if (!img) return;
+    const showFallback = () => {
+      const initials = wrap.getAttribute('data-job-logo') || '?';
+      wrap.innerHTML = `<span class="community-job-logo-fallback" aria-hidden="true">${initials}</span>`;
+    };
+    if (img.complete && img.naturalWidth === 0) {
+      showFallback();
+      return;
+    }
+    img.addEventListener('error', showFallback, { once: true });
+  });
+
+  shell.querySelectorAll('[data-job-apply]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (btn.classList.contains('is-applied')) return;
+      btn.classList.add('is-applied');
+      btn.textContent = 'Applied';
+      btn.setAttribute('aria-pressed', 'true');
+    });
+  });
+
+  function syncCommunitySaveButtons() {
+    shell.querySelectorAll('[data-community-save]').forEach((btn) => {
+      const post = COMMUNITY_POSTS.find((item) => item.id === btn.getAttribute('data-community-save'));
+      if (!post) return;
+      const saved = isCommunitySaved(post);
+      btn.classList.toggle('is-saved', saved);
+      btn.setAttribute('aria-pressed', saved ? 'true' : 'false');
+      btn.setAttribute('aria-label', saved ? 'Remove from saved' : 'Save update');
+      const svg = btn.querySelector('svg');
+      if (svg) svg.setAttribute('fill', saved ? 'currentColor' : 'none');
+      btn.closest('.community-post')?.classList.toggle('is-saved', saved);
+    });
+
+    shell.querySelectorAll('[data-job-save]').forEach((btn) => {
+      const job = COMMUNITY_JOBS.find((item) => item.id === btn.getAttribute('data-job-save'));
+      if (!job) return;
+      const saved = isCommunitySaved({ ...job, kind: 'job' });
+      btn.classList.toggle('is-saved', saved);
+      btn.setAttribute('aria-pressed', saved ? 'true' : 'false');
+      btn.setAttribute('aria-label', saved ? 'Remove from saved' : 'Save job');
+      const svg = btn.querySelector('svg');
+      if (svg) svg.setAttribute('fill', saved ? 'currentColor' : 'none');
+      btn.closest('.community-job')?.classList.toggle('is-saved', saved);
+    });
+  }
+
+  shell.querySelectorAll('[data-community-save]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const post = COMMUNITY_POSTS.find((item) => item.id === btn.getAttribute('data-community-save'));
+      if (!post) return;
+      const saved = toggleSavedCommunity({ ...post, kind: 'post' });
+      syncCommunitySaveButtons();
+      refreshSavedLists();
+      setStatus(saved ? 'Saved to Community' : 'Removed from saved');
+    });
+  });
+
+  shell.querySelectorAll('[data-job-save]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const job = COMMUNITY_JOBS.find((item) => item.id === btn.getAttribute('data-job-save'));
+      if (!job) return;
+      const saved = toggleSavedCommunity({ ...job, kind: 'job', image: job.logo });
+      syncCommunitySaveButtons();
+      refreshSavedLists();
+      setStatus(saved ? 'Job saved' : 'Job removed from saved');
+    });
+  });
+
   const savedFilters = Array.from(shell.querySelectorAll('[data-saved-filter]'));
   const savedPlacesSection = shell.querySelector('[data-saved-section="places"]');
   const savedRoutesSection = shell.querySelector('[data-saved-section="routes"]');
+  const savedCommunitySection = shell.querySelector('[data-saved-section="community"]');
 
   function setSavedFilter(filterId) {
-    const next = filterId === 'routes' ? 'routes' : 'places';
+    const next = filterId === 'routes' || filterId === 'community' ? filterId : 'places';
     savedFilters.forEach((btn) => {
       const active = btn.getAttribute('data-saved-filter') === next;
       btn.classList.toggle('is-active', active);
@@ -1739,18 +2428,20 @@ export function mountDashboard(root = document) {
     });
     if (savedPlacesSection) savedPlacesSection.hidden = next !== 'places';
     if (savedRoutesSection) savedRoutesSection.hidden = next !== 'routes';
+    if (savedCommunitySection) savedCommunitySection.hidden = next !== 'community';
   }
 
   function refreshSavedLists() {
     const places = listSavedPlaces();
     const routes = listSavedRoutes();
+    const community = listSavedCommunity();
 
     if (savedPlacesSection) {
       savedPlacesSection.innerHTML = places.length
         ? places.map(renderSavedPlaceItem).join('')
         : `<div class="saved-empty">
             <strong>No saved places yet</strong>
-            <p>Tap the star on a tourist spot card to save it here.</p>
+            <p>On Map, tap the star on a tourist spot to save it here.</p>
           </div>`;
     }
 
@@ -1759,12 +2450,22 @@ export function mountDashboard(root = document) {
         ? routes.map(renderSavedRouteItem).join('')
         : `<div class="saved-empty">
             <strong>No saved routes yet</strong>
-            <p>Get directions, then tap the star on the route card.</p>
+            <p>On Routes, get directions, then tap the star to save.</p>
+          </div>`;
+    }
+
+    if (savedCommunitySection) {
+      savedCommunitySection.innerHTML = community.length
+        ? community.map(renderSavedCommunityItem).join('')
+        : `<div class="saved-empty">
+            <strong>No saved community items yet</strong>
+            <p>On Community, tap the bookmark on a post or job to save it here.</p>
           </div>`;
     }
 
     syncTouristSaveButtons();
     syncRouteSaveButton();
+    syncCommunitySaveButtons();
   }
 
   savedFilters.forEach((btn) => {
@@ -1789,6 +2490,14 @@ export function mountDashboard(root = document) {
         removeSavedRoute(removeRoute.dataset.savedRemoveRoute);
         refreshSavedLists();
         setStatus('Route removed');
+        return;
+      }
+
+      const removeCommunity = event.target.closest('[data-saved-remove-community]');
+      if (removeCommunity) {
+        removeSavedCommunity(removeCommunity.dataset.savedRemoveCommunity);
+        refreshSavedLists();
+        setStatus('Removed from saved');
         return;
       }
 
@@ -1820,9 +2529,66 @@ export function mountDashboard(root = document) {
         routesForm.to.dataset.label = route.to?.label || '';
         await runDirections();
         if (route.modeId) await applySelectedMode(route.modeId);
+        return;
+      }
+
+      const openCommunity = event.target.closest('[data-saved-open-community]');
+      if (openCommunity) {
+        const item = listSavedCommunity().find((entry) => entry.id === openCommunity.dataset.savedOpenCommunity);
+        if (!item) return;
+        setTab('community');
+        const kind = openCommunity.dataset.savedCommunityKind || item.kind || 'post';
+        setCommunityFilter(kind === 'job' ? 'jobs' : (item.type || 'all'));
+        requestAnimationFrame(() => {
+          const target = shell.querySelector(
+            kind === 'job'
+              ? `[data-community-job="${item.id}"]`
+              : `[data-community-id="${item.id}"]`,
+          );
+          target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
       }
     });
   }
+
+  const mapSavedBtn = shell.querySelector('#map-saved-btn');
+  if (mapSavedBtn) {
+    mapSavedBtn.addEventListener('click', () => {
+      setLayersOpen(false);
+      setTab('saved');
+    });
+  }
+
+  const touristStack = shell.querySelector('#tourist-stack');
+  const mapTouristBtn = shell.querySelector('#map-tourist-btn');
+  const touristCloseBtn = shell.querySelector('#tourist-rail-close');
+
+  function setTouristRailOpen(open) {
+    const next = Boolean(open);
+    if (touristStack) {
+      touristStack.classList.toggle('is-open', next);
+      touristStack.hidden = !next;
+    }
+    if (mapTouristBtn) {
+      mapTouristBtn.classList.toggle('is-active', next);
+      mapTouristBtn.setAttribute('aria-pressed', next ? 'true' : 'false');
+      mapTouristBtn.setAttribute('aria-label', next ? 'Hide tourist spots' : 'Show tourist spots');
+    }
+    if (next) {
+      setLayersOpen(false);
+      setEmergencyOpen(false);
+    }
+  }
+
+  mapTouristBtn?.addEventListener('click', () => {
+    const open = !(touristStack && !touristStack.hidden && touristStack.classList.contains('is-open'));
+    setTouristRailOpen(open);
+  });
+
+  touristCloseBtn?.addEventListener('click', () => {
+    setTouristRailOpen(false);
+  });
+
 
   tabs.forEach((tab) => {
     tab.addEventListener('click', () => {

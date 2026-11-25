@@ -1,5 +1,6 @@
 const PLACES_KEY = 'ormocgo.saved.places';
 const ROUTES_KEY = 'ormocgo.saved.routes';
+const COMMUNITY_KEY = 'ormocgo.saved.community';
 
 function readList(key) {
   try {
@@ -123,5 +124,59 @@ export function toggleSavedRoute(route) {
     return false;
   }
   saveRoute(route);
+  return true;
+}
+
+function communityItemId(item) {
+  return String(item?.id || '');
+}
+
+export function listSavedCommunity() {
+  return readList(COMMUNITY_KEY);
+}
+
+export function isCommunitySaved(item) {
+  const id = communityItemId(item);
+  if (!id) return false;
+  return listSavedCommunity().some((entry) => entry.id === id);
+}
+
+export function saveCommunityItem(item) {
+  const id = communityItemId(item);
+  if (!id) return null;
+  const list = listSavedCommunity().filter((entry) => entry.id !== id);
+  const next = {
+    id,
+    kind: item.kind === 'job' ? 'job' : 'post',
+    type: item.type || (item.kind === 'job' ? 'job' : 'update'),
+    title: item.title || 'Saved update',
+    body: item.body || item.meta || '',
+    author: item.author || item.company || '',
+    place: item.place || item.location || '',
+    when: item.when || item.posted || '',
+    image: item.image || item.logo || '',
+    company: item.company || '',
+    location: item.location || '',
+    meta: item.meta || '',
+    easyApply: Boolean(item.easyApply),
+    savedAt: Date.now(),
+  };
+  list.unshift(next);
+  writeList(COMMUNITY_KEY, list.slice(0, 40));
+  return next;
+}
+
+export function removeSavedCommunity(id) {
+  writeList(COMMUNITY_KEY, listSavedCommunity().filter((entry) => entry.id !== String(id)));
+}
+
+export function toggleSavedCommunity(item) {
+  const id = communityItemId(item);
+  if (!id) return false;
+  if (isCommunitySaved(item)) {
+    removeSavedCommunity(id);
+    return false;
+  }
+  saveCommunityItem(item);
   return true;
 }
