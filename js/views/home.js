@@ -92,7 +92,6 @@ export async function mountHome(root = document, { openSheet = null } = {}) {
 
   if (session?.user) {
     root.innerHTML = renderDashboard(session.user);
-    document.title = 'Map · OrmocGo';
     document.body.classList.add('no-chrome');
     mountDashboard(root);
     document.dispatchEvent(new CustomEvent('ormocgo:auth', { detail: { session } }));

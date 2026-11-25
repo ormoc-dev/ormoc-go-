@@ -54,6 +54,43 @@ const TABS = [
   { id: 'more', label: 'More', icon: iconMore },
 ];
 
+const TAB_STORAGE_KEY = 'ormocgo.dash.tab';
+const VALID_TABS = new Set(TABS.map((tab) => tab.id));
+
+function readStoredTab() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = params.get('tab');
+    if (VALID_TABS.has(fromQuery)) return fromQuery;
+  } catch (_) {
+    /* ignore */
+  }
+  try {
+    const stored = localStorage.getItem(TAB_STORAGE_KEY);
+    if (VALID_TABS.has(stored)) return stored;
+  } catch (_) {
+    /* ignore */
+  }
+  return 'map';
+}
+
+function persistTab(tabId) {
+  if (!VALID_TABS.has(tabId)) return;
+  try {
+    localStorage.setItem(TAB_STORAGE_KEY, tabId);
+  } catch (_) {
+    /* ignore */
+  }
+  try {
+    const url = new URL(window.location.href);
+    if (tabId === 'map') url.searchParams.delete('tab');
+    else url.searchParams.set('tab', tabId);
+    window.history.replaceState(window.history.state, '', url);
+  } catch (_) {
+    /* ignore */
+  }
+}
+
 const MAP_CATEGORIES = [
   { id: 'home', label: 'Home' },
   { id: 'malls', label: 'Malls' },
@@ -1185,26 +1222,46 @@ function renderTouristRail() {
 }
 
 export function renderDashboard(user) {
-  const nav = TABS.map((tab, index) => `
+  const startTab = readStoredTab();
+  const nav = TABS.map((tab) => `
     <button
       type="button"
-      class="bottom-nav-item${index === 0 ? ' is-active' : ''}"
+      class="bottom-nav-item${tab.id === startTab ? ' is-active' : ''}"
       data-tab="${tab.id}"
-      aria-current="${index === 0 ? 'page' : 'false'}"
+      aria-current="${tab.id === startTab ? 'page' : 'false'}"
     >
       <span class="bottom-nav-icon">${tab.icon()}</span>
       <span class="bottom-nav-label">${tab.label}</span>
     </button>
   `).join('');
 
+  const mapHtml = renderMapPanel();
+  const routesHtml = renderRoutesPanel();
+  const communityHtml = renderCommunityPanel();
+  const savedHtml = renderSavedPanel();
+  const moreHtml = renderMorePanel(user);
+
+  const withPanelState = (html, id) => {
+    const active = id === startTab;
+    return html
+      .replace(
+        `class="dash-panel dash-panel--${id}${id === 'map' ? ' is-active' : ''}"`,
+        `class="dash-panel dash-panel--${id}${active ? ' is-active' : ''}"`,
+      )
+      .replace(
+        `data-panel="${id}"${id === 'map' ? '' : ' hidden'}`,
+        `data-panel="${id}"${active ? '' : ' hidden'}`,
+      );
+  };
+
   return `
-    <section class="dash-shell" aria-label="OrmocGo app" data-active-tab="map">
+    <section class="dash-shell" aria-label="OrmocGo app" data-active-tab="${escapeHtml(startTab)}">
       <div class="dash-body">
-        ${renderMapPanel()}
-        ${renderRoutesPanel()}
-        ${renderCommunityPanel()}
-        ${renderSavedPanel()}
-        ${renderMorePanel(user)}
+        ${withPanelState(mapHtml, 'map')}
+        ${withPanelState(routesHtml, 'routes')}
+        ${withPanelState(communityHtml, 'community')}
+        ${withPanelState(savedHtml, 'saved')}
+        ${withPanelState(moreHtml, 'more')}
       </div>
 
       ${renderTouristRail()}
@@ -1337,25 +1394,30 @@ export function mountDashboard(root = document) {
     }
   }
 
-  function setTab(tabId) {
+  function setTab(tabId, { persist = true } = {}) {
+    const next = VALID_TABS.has(tabId) ? tabId : 'map';
     tabs.forEach((tab) => {
-      const active = tab.getAttribute('data-tab') === tabId;
+      const active = tab.getAttribute('data-tab') === next;
       tab.classList.toggle('is-active', active);
       tab.setAttribute('aria-current', active ? 'page' : 'false');
     });
 
     panels.forEach((panel) => {
-      const active = panel.getAttribute('data-panel') === tabId;
+      const active = panel.getAttribute('data-panel') === next;
       panel.classList.toggle('is-active', active);
       panel.hidden = !active;
     });
 
-    shell.dataset.activeTab = tabId;
+    shell.dataset.activeTab = next;
+    if (persist) persistTab(next);
 
-    if (tabId === 'map' && mapApi) {
+    const tabMeta = TABS.find((tab) => tab.id === next);
+    document.title = `${tabMeta?.label || 'Map'} · OrmocGo`;
+
+    if (next === 'map' && mapApi) {
       mapApi.invalidate();
     }
-    if (tabId === 'routes') {
+    if (next === 'routes') {
       ensureRoutesMap().then((api) => {
         api?.invalidate();
         if (routePlan && isLiveFollowMode(routePlan.selectedId)) {
@@ -1365,10 +1427,10 @@ export function mountDashboard(root = document) {
     } else {
       stopRouteTracking();
     }
-    if (tabId === 'saved') {
+    if (next === 'saved') {
       refreshSavedLists?.();
     }
-    if (tabId !== 'more') {
+    if (next !== 'more') {
       setMoreView?.('home');
     }
   }
@@ -2609,6 +2671,14 @@ export function mountDashboard(root = document) {
 
   refreshSavedLists();
   setSavedFilter('places');
-  setTab('map');
+
+  const initialTab = readStoredTab();
+  setTab(initialTab);
   initMap();
+
+  // Keep tab in sync if URL changes (share / back-forward / external edits).
+  window.addEventListener('popstate', () => {
+    const next = readStoredTab();
+    if (shell.dataset.activeTab !== next) setTab(next, { persist: false });
+  });
 }
