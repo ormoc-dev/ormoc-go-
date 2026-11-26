@@ -7,7 +7,7 @@ const defaults = {
   APP_NAME: 'OrmocGo',
   APP_ENV: 'local',
   APP_URL: 'https://ormoc-go.vercel.app',
-  APP_VERSION: '0.1.32',
+  APP_VERSION: '0.1.33',
   SUPABASE_URL: '',
   SUPABASE_ANON_KEY: '',
   PWA_NAME: 'OrmocGo',
@@ -20,6 +20,40 @@ const defaults = {
 };
 
 let cache = null;
+const ENV_STORAGE_KEY = 'ormocgo.env.cache';
+
+function readStoredEnv() {
+  try {
+    const raw = localStorage.getItem(ENV_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeStoredEnv(env) {
+  try {
+    localStorage.setItem(ENV_STORAGE_KEY, JSON.stringify({
+      APP_NAME: env.APP_NAME,
+      APP_ENV: env.APP_ENV,
+      APP_URL: env.APP_URL,
+      APP_VERSION: env.APP_VERSION,
+      SUPABASE_URL: env.SUPABASE_URL,
+      SUPABASE_ANON_KEY: env.SUPABASE_ANON_KEY,
+      PWA_NAME: env.PWA_NAME,
+      PWA_SHORT_NAME: env.PWA_SHORT_NAME,
+      PWA_DESCRIPTION: env.PWA_DESCRIPTION,
+      PWA_THEME_COLOR: env.PWA_THEME_COLOR,
+      PWA_BACKGROUND_COLOR: env.PWA_BACKGROUND_COLOR,
+      PWA_START_URL: env.PWA_START_URL,
+      PWA_SCOPE: env.PWA_SCOPE,
+    }));
+  } catch (_) {
+    /* ignore quota / private mode */
+  }
+}
 
 function isLocalHost(hostname) {
   return hostname === 'localhost'
@@ -106,9 +140,20 @@ export async function loadEnv() {
     try {
       cache = await loadFromEnvFile();
     } catch (fileErr) {
-      console.warn('[OrmocGo] Could not load env, using defaults.', err, fileErr);
-      cache = { ...defaults };
+      const stored = readStoredEnv();
+      if (stored) {
+        console.warn('[OrmocGo] Offline env fallback (stored).', err, fileErr);
+        cache = mergeEnv(stored, defaults);
+      } else {
+        console.warn('[OrmocGo] Could not load env, using defaults.', err, fileErr);
+        cache = { ...defaults };
+      }
     }
+  }
+
+  // Keep a local copy so limited offline features can boot without /api/config or .env.
+  if (!missingCriticalKeys(cache) || cache.APP_VERSION) {
+    writeStoredEnv(cache);
   }
 
   cache.APP_URL = cache.APP_URL

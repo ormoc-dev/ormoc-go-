@@ -158,6 +158,28 @@
   color: var(--muted);
 }
 
+.offline-banner {
+  position: sticky;
+  top: 0;
+  z-index: 1200;
+  padding: 0.55rem 0.9rem;
+  background: #12335c;
+  color: #f4f8ff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-align: center;
+  line-height: 1.35;
+}
+
+.offline-banner[hidden] {
+  display: none !important;
+}
+
+body.is-offline .boot-splash {
+  top: 0;
+}
+
 @media (max-width: 800px) {
   .app-shell {
     grid-template-columns: 1fr;

@@ -6,6 +6,7 @@ import { goToPage } from './lib/navigate.js';
 import { renderHeader } from './components/header.js';
 import { renderFooter } from './components/footer.js';
 import { renderSidebar, bindSidebar } from './components/sidebar.js';
+import { ensureEmergencyContactsCached } from './lib/emergency-contacts.js';
 
 const app = document.getElementById('app');
 const headerSlot = document.getElementById('header-slot');
@@ -15,6 +16,35 @@ const sidebarSlot = document.getElementById('sidebar-slot');
 const loadedStyles = new Set();
 let authBound = false;
 let renderToken = 0;
+let offlineBannerBound = false;
+
+function syncOfflineBanner() {
+  let banner = document.getElementById('offline-banner');
+  const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+  if (!offline) {
+    if (banner) banner.hidden = true;
+    document.body.classList.remove('is-offline');
+    return;
+  }
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'offline-banner';
+    banner.className = 'offline-banner';
+    banner.setAttribute('role', 'status');
+    banner.textContent = 'Offline · Photo Archive, emergency contacts, and saved items still work';
+    document.body.prepend(banner);
+  }
+  banner.hidden = false;
+  document.body.classList.add('is-offline');
+}
+
+function bindOfflineBanner() {
+  if (offlineBannerBound) return;
+  offlineBannerBound = true;
+  syncOfflineBanner();
+  window.addEventListener('online', syncOfflineBanner);
+  window.addEventListener('offline', syncOfflineBanner);
+}
 
 function resolvePage() {
   const params = new URLSearchParams(window.location.search);
@@ -120,10 +150,15 @@ function setActiveNav(active) {
 }
 
 async function getSession() {
-  const supabase = await getSupabase();
-  if (!supabase) return null;
-  const { data } = await supabase.auth.getSession();
-  return data.session;
+  try {
+    const supabase = await getSupabase();
+    if (!supabase) return null;
+    const { data } = await supabase.auth.getSession();
+    return data.session;
+  } catch (err) {
+    console.warn('[OrmocGo] Session read failed (offline?)', err);
+    return null;
+  }
 }
 
 async function render() {
@@ -200,6 +235,9 @@ async function boot() {
     await loadEnv();
     applyPwaMeta();
     registerServiceWorker();
+    bindOfflineBanner();
+    // Seed IndexedDB emergency contacts while online/offline so the modal works offline.
+    void ensureEmergencyContactsCached().catch(() => {});
     await getSupabase();
     bindAuthListener();
     await render();
