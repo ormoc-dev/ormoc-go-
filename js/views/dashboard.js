@@ -12,8 +12,6 @@ import {
   ORMOC_CENTER,
   MAP_LAYERS,
   getLayerPreviewBackground,
-  fetchGooglePlacePhotoUrl,
-  loadGoogleMaps,
 } from '../lib/ormoc-map.js';
 import {
   listSavedPlaces,
@@ -546,7 +544,7 @@ function renderMapPanel() {
 
   return `
     <section class="dash-panel dash-panel--map is-active" data-panel="map" aria-label="Map">
-      <div id="ormoc-map" class="map-canvas" role="application" aria-label="Google Map of Ormoc"></div>
+      <div id="ormoc-map" class="map-canvas" role="application" aria-label="Map of Ormoc"></div>
 
       <div class="map-overlay">
         <form class="map-search" id="map-search-form" role="search">
@@ -559,6 +557,9 @@ function renderMapPanel() {
               placeholder="Search places in Ormoc"
               autocomplete="off"
               enterkeyhint="search"
+              aria-autocomplete="list"
+              aria-controls="map-suggest"
+              aria-expanded="false"
             >
             <span class="map-search-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
@@ -567,6 +568,7 @@ function renderMapPanel() {
               </svg>
             </span>
           </label>
+          <div class="map-suggest" id="map-suggest" hidden role="listbox" aria-label="Place suggestions"></div>
         </form>
 
         <div class="map-chips" role="toolbar" aria-label="Place categories">
@@ -589,10 +591,10 @@ function renderMapPanel() {
                 return `
                 <button
                   type="button"
-                  class="map-layer-card${layer.id === 'google' ? ' is-active' : ''}"
+                  class="map-layer-card${layer.id === 'streets' ? ' is-active' : ''}"
                   data-map-type="${layer.id}"
                   role="option"
-                  aria-selected="${layer.id === 'google' ? 'true' : 'false'}"
+                  aria-selected="${layer.id === 'streets' ? 'true' : 'false'}"
                 >
                   <span
                     class="map-layer-thumb map-layer-thumb--${layer.id}"
@@ -618,6 +620,13 @@ function renderMapPanel() {
         <button type="button" class="map-emergency-btn" id="map-emergency-btn" aria-label="Emergency contacts" aria-haspopup="dialog" aria-expanded="false" aria-controls="map-emergency-modal">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M8.2 3.8h2.1c.6 0 1.1.4 1.2 1l.4 2.3a1.2 1.2 0 0 1-.3 1.1l-1.3 1.3a12.2 12.2 0 0 0 4.2 4.2l1.3-1.3a1.2 1.2 0 0 1 1.1-.3l2.3.4c.6.1 1 .6 1 1.2v2.1a1.2 1.2 0 0 1-1.3 1.2A14.8 14.8 0 0 1 3.8 5.1a1.2 1.2 0 0 1 1.2-1.3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button type="button" class="map-locate-btn" id="map-locate-btn" aria-label="My location" aria-pressed="false" title="My location">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <circle cx="12" cy="12" r="7.2" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
           </svg>
         </button>
         </div>
@@ -746,15 +755,19 @@ function renderRoutesPanel() {
   `;
 }
 
-function renderSuggestItem(place, index) {
+function renderSuggestItem(place, index, { kind = 'routes' } = {}) {
   const name = escapeHtml(place.name || 'Place');
   const sub = escapeHtml(place.display_name || '');
+  const itemClass = kind === 'map' ? 'map-suggest-item' : 'routes-suggest-item';
+  const pinClass = kind === 'map' ? 'map-suggest-pin' : 'routes-suggest-pin';
+  const copyClass = kind === 'map' ? 'map-suggest-copy' : 'routes-suggest-copy';
+  const indexAttr = kind === 'map' ? 'data-map-suggest-index' : 'data-suggest-index';
   return `
-    <button type="button" class="routes-suggest-item" role="option" data-suggest-index="${index}">
-      <span class="routes-suggest-pin" aria-hidden="true">
+    <button type="button" class="${itemClass}" role="option" ${indexAttr}="${index}">
+      <span class="${pinClass}" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>
       </span>
-      <span class="routes-suggest-copy">
+      <span class="${copyClass}">
         <strong>${name}</strong>
         <span>${sub}</span>
       </span>
@@ -1565,15 +1578,19 @@ export function mountDashboard(root = document) {
 
   let mapApi = null;
   let activeCategory = 'home';
-  let activeMapType = 'google';
+  let activeMapType = 'streets';
   let searchTimer = null;
 
   const emergencyBtn = shell.querySelector('#map-emergency-btn');
   const emergencyModal = shell.querySelector('#map-emergency-modal');
   const emergencyList = shell.querySelector('#map-emergency-list');
+  const locateBtn = shell.querySelector('#map-locate-btn');
   let emergencyContactsCache = EMERGENCY_SEED;
   let emergencyActiveTab = 'national';
   let emergencyUserPos = null;
+  let locateWatchId = null;
+  let locateTracking = false;
+  let locateBusy = false;
 
   function paintEmergencyList() {
     if (!emergencyList) return;
@@ -1846,11 +1863,16 @@ export function mountDashboard(root = document) {
 
     if (next === 'map' && mapApi) {
       mapApi.invalidate();
+    } else if (next !== 'map') {
+      stopLocateTracking({ keepMarker: true });
     }
     if (next === 'routes') {
-      ensureRoutesMap().then((api) => {
+      ensureRoutesMap().then(async (api) => {
         api?.invalidate();
-        if (routePlan && isLiveFollowMode(routePlan.selectedId)) {
+        // Re-draw after basemap sync so the blue route line is never lost.
+        if (routePlan?.selectedId) {
+          await applySelectedMode(routePlan.selectedId);
+        } else if (routePlan && isLiveFollowMode(routePlan.selectedId)) {
           startRouteTracking(routePlan.selectedId);
         }
       });
@@ -1929,14 +1951,135 @@ export function mountDashboard(root = document) {
 
   function setMapType(type) {
     const known = MAP_LAYERS.some((layer) => layer.id === type);
-    activeMapType = known ? type : 'google';
+    activeMapType = known ? type : 'streets';
     mapTypeBtns.forEach((btn) => {
       const active = btn.getAttribute('data-map-type') === activeMapType;
       btn.classList.toggle('is-active', active);
       btn.setAttribute('aria-selected', active ? 'true' : 'false');
     });
     if (mapApi) mapApi.setMapType(activeMapType);
+    // Keep Routes map on the same basemap the user picked on Map.
+    if (routesMapApi) routesMapApi.setMapType(activeMapType);
     setLayersOpen(false);
+  }
+
+  function setLocateUi(active) {
+    locateTracking = Boolean(active);
+    if (!locateBtn) return;
+    locateBtn.classList.toggle('is-active', locateTracking);
+    locateBtn.setAttribute('aria-pressed', locateTracking ? 'true' : 'false');
+    locateBtn.setAttribute(
+      'aria-label',
+      locateTracking ? 'Stop tracking my location' : 'My location',
+    );
+  }
+
+  function stopLocateTracking({ keepMarker = true } = {}) {
+    if (locateWatchId != null && navigator.geolocation) {
+      navigator.geolocation.clearWatch(locateWatchId);
+    }
+    locateWatchId = null;
+    setLocateUi(false);
+    if (!keepMarker) mapApi?.clearUserLocation?.();
+  }
+
+  function applyLocatePosition(pos, { zoom = true } = {}) {
+    if (!mapApi || !pos) return;
+    const latlng = {
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+    };
+    mapApi.setUserLocation(latlng, {
+      accuracy: pos.coords.accuracy,
+      heading: pos.coords.heading,
+      follow: true,
+    });
+    if (zoom) {
+      mapApi.map.setCenter(latlng);
+      mapApi.map.setZoom(17);
+    }
+  }
+
+  function locateErrorMessage(err) {
+    if (!navigator.geolocation) return 'Location is not supported on this device';
+    if (err?.code === 1) return 'Location permission blocked — allow it in browser settings';
+    if (err?.code === 2) return 'Location unavailable right now';
+    if (err?.code === 3) return 'Location request timed out — try again';
+    return err?.message || 'Could not get your location';
+  }
+
+  function startLocateTracking() {
+    if (!navigator.geolocation) {
+      setStatus(locateErrorMessage(), { type: 'error' });
+      return;
+    }
+
+    if (locateWatchId != null && navigator.geolocation) {
+      navigator.geolocation.clearWatch(locateWatchId);
+      locateWatchId = null;
+    }
+
+    setLocateUi(true);
+    setStatus('Tracking your location…', { sticky: true });
+
+    locateWatchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        // Keep the blue dot moving; center was set on first locate click.
+        applyLocatePosition(pos, { zoom: false });
+        setStatus('Tracking your location');
+      },
+      (err) => {
+        stopLocateTracking({ keepMarker: true });
+        setStatus(locateErrorMessage(err), { type: 'error' });
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 1500,
+        timeout: 15000,
+      },
+    );
+  }
+
+  async function requestAndLocate() {
+    if (!navigator.geolocation) {
+      setStatus(locateErrorMessage(), { type: 'error' });
+      return;
+    }
+    if (!mapApi) {
+      setStatus('Map is still loading', { type: 'error' });
+      return;
+    }
+    if (locateBusy) return;
+
+    if (locateTracking) {
+      stopLocateTracking({ keepMarker: true });
+      setStatus('Location tracking off');
+      return;
+    }
+
+    locateBusy = true;
+    locateBtn?.classList.add('is-busy');
+    setStatus('Getting your location…', { sticky: true });
+    setLayersOpen(false);
+    setEmergencyOpen(false);
+
+    try {
+      const pos = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 15000,
+        });
+      });
+      applyLocatePosition(pos, { zoom: true });
+      startLocateTracking();
+    } catch (err) {
+      stopLocateTracking({ keepMarker: true });
+      setStatus(locateErrorMessage(err), { type: 'error', sticky: true });
+    } finally {
+      locateBusy = false;
+      locateBtn?.classList.remove('is-busy');
+    }
   }
 
   async function initMap() {
@@ -1972,6 +2115,43 @@ export function mountDashboard(root = document) {
     });
   }
 
+  if (locateBtn) {
+    locateBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      void requestAndLocate();
+    });
+  }
+
+  async function routeToPlaceFromMap(place) {
+    if (!place || !routesForm?.to) return;
+    const lat = Number(place.lat);
+    const lon = Number(place.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      setStatus('That place has no location', { type: 'error' });
+      return;
+    }
+
+    setTab('routes');
+    applyPlaceToInput(routesForm.to, {
+      lat,
+      lon,
+      name: place.name || 'Destination',
+      display_name: place.display_name || place.name || '',
+    });
+    syncRouteFieldChrome();
+    await ensureRouteFromLocation({ focusTo: false });
+
+    if (routesForm.from.value.trim() || routesForm.from.dataset.lat) {
+      await runDirections();
+    } else {
+      setStatus('Set your starting point, then tap Go');
+    }
+  }
+
+  window.addEventListener('ormocgo:route-to-place', (event) => {
+    void routeToPlaceFromMap(event.detail);
+  });
+
   emergencyModal?.querySelectorAll('[data-emergency-close]').forEach((btn) => {
     btn.addEventListener('click', () => setEmergencyOpen(false));
   });
@@ -2002,6 +2182,7 @@ export function mountDashboard(root = document) {
   chips.forEach((chip) => {
     chip.addEventListener('click', () => {
       if (searchInput) searchInput.value = '';
+      hideMapSuggestions();
       runCategory(chip.getAttribute('data-map-category'));
     });
   });
@@ -2047,32 +2228,7 @@ export function mountDashboard(root = document) {
   }
 
   async function hydrateTouristPhotos() {
-    if (!touristRail) return;
-    try {
-      await loadGoogleMaps();
-    } catch (_) {
-      return;
-    }
-
-    await Promise.all(TOURIST_SPOTS.map(async (spot) => {
-      // Keep curated Chill & Travel / multi-image albums — don't replace with Google photos.
-      const album = spotImageList(spot);
-      if (album.length > 1) return;
-      if (album.some((src) => String(src).includes('/tourist-spots/'))) return;
-      const img = touristRail.querySelector(`[data-tourist-photo="${spot.id}"]`);
-      if (!img) return;
-      try {
-        const url = await fetchGooglePlacePhotoUrl(spot, { maxWidth: 640 });
-        const fallback = img.dataset.fallbackSrc || spot.image || '';
-        // Only swap in Google photos (not Street View Static / empty).
-        if (!url || url === fallback) return;
-        if (url.includes('maps.googleapis.com/maps/api/streetview')) return;
-        if (img.getAttribute('src') === url) return;
-        img.src = url;
-      } catch (_) {
-        /* keep local preview */
-      }
-    }));
+    // Tourist images stay on local / curated assets (no Google Places).
   }
 
   function syncTouristSaveButtons() {
@@ -2138,10 +2294,80 @@ export function mountDashboard(root = document) {
     });
   }
 
+  const mapSuggest = shell.querySelector('#map-suggest');
+  let mapSuggestItems = [];
+  let mapSuggestSeq = 0;
+
+  function hideMapSuggestions() {
+    mapSuggestItems = [];
+    if (mapSuggest) {
+      mapSuggest.hidden = true;
+      mapSuggest.innerHTML = '';
+    }
+    searchInput?.setAttribute('aria-expanded', 'false');
+  }
+
+  function showMapSuggestions(places, { loading = false } = {}) {
+    if (!mapSuggest) return;
+    mapSuggestItems = places || [];
+
+    if (loading && !mapSuggestItems.length) {
+      mapSuggest.innerHTML = `<div class="map-suggest-status">Searching places…</div>`;
+      mapSuggest.hidden = false;
+      searchInput?.setAttribute('aria-expanded', 'true');
+      return;
+    }
+
+    if (!mapSuggestItems.length) {
+      mapSuggest.innerHTML = `<div class="map-suggest-status">No places found</div>`;
+      mapSuggest.hidden = false;
+      searchInput?.setAttribute('aria-expanded', 'true');
+      return;
+    }
+
+    mapSuggest.innerHTML = mapSuggestItems
+      .map((place, i) => renderSuggestItem(place, i, { kind: 'map' }))
+      .join('');
+    mapSuggest.hidden = false;
+    searchInput?.setAttribute('aria-expanded', 'true');
+  }
+
+  async function pickMapSuggestion(place) {
+    if (!place) return;
+    hideMapSuggestions();
+    if (searchInput) searchInput.value = place.name || place.display_name || '';
+
+    chips.forEach((chip) => {
+      chip.classList.remove('is-active');
+      chip.setAttribute('aria-pressed', 'false');
+    });
+
+    try {
+      if (!mapApi && mapEl) {
+        mapApi = await createOrmocMap(mapEl, { mapType: activeMapType });
+      }
+      if (!mapApi) {
+        setStatus('Map is still loading', { type: 'error' });
+        return;
+      }
+      mapApi.setStatusMarkers([place]);
+      mapApi.focusPlace(place, { zoom: 16 });
+      setStatus(place.name || 'Place found');
+    } catch (err) {
+      setStatus(err.message || 'Could not open place', { type: 'error' });
+    }
+  }
+
   if (searchForm) {
-    searchForm.addEventListener('submit', (event) => {
+    searchForm.addEventListener('submit', async (event) => {
       event.preventDefault();
-      runSearch(searchInput?.value || '');
+      if (mapSuggestItems.length) {
+        await pickMapSuggestion(mapSuggestItems[0]);
+        searchInput?.blur();
+        return;
+      }
+      hideMapSuggestions();
+      await runSearch(searchInput?.value || '');
       searchInput?.blur();
     });
   }
@@ -2149,11 +2375,52 @@ export function mountDashboard(root = document) {
   if (searchInput) {
     searchInput.addEventListener('input', () => {
       clearTimeout(searchTimer);
-      searchTimer = setTimeout(() => {
-        const q = searchInput.value.trim();
-        if (q.length >= 3) runSearch(q);
-        if (!q) runCategory(activeCategory);
-      }, 450);
+      const q = searchInput.value.trim();
+      if (!q) {
+        hideMapSuggestions();
+        searchTimer = setTimeout(() => runCategory(activeCategory), 200);
+        return;
+      }
+      if (q.length < 2) {
+        hideMapSuggestions();
+        return;
+      }
+
+      const seq = ++mapSuggestSeq;
+      showMapSuggestions([], { loading: true });
+      searchTimer = setTimeout(async () => {
+        try {
+          const places = await suggestPlaces(q, { limit: 6 });
+          if (seq !== mapSuggestSeq) return;
+          showMapSuggestions(places);
+        } catch (_) {
+          if (seq !== mapSuggestSeq) return;
+          showMapSuggestions([]);
+        }
+      }, 280);
+    });
+
+    searchInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') hideMapSuggestions();
+    });
+
+    searchInput.addEventListener('blur', () => {
+      // Let suggestion click register before closing.
+      window.setTimeout(() => {
+        if (!mapSuggest?.contains(document.activeElement)) hideMapSuggestions();
+      }, 160);
+    });
+  }
+
+  if (mapSuggest) {
+    mapSuggest.addEventListener('mousedown', (event) => {
+      event.preventDefault();
+    });
+    mapSuggest.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-map-suggest-index]');
+      if (!btn) return;
+      const place = mapSuggestItems[Number(btn.getAttribute('data-map-suggest-index'))];
+      void pickMapSuggestion(place);
     });
   }
 

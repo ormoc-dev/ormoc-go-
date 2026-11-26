@@ -1,8 +1,6 @@
 /**
- * Google Maps (roadmap / satellite) + Nominatim search + OSRM routing for Ormoc.
+ * MapLibre + OSM/Carto/Esri tiles + Nominatim search + OSRM routing for Ormoc.
  */
-
-import { getEnv } from '../env.js';
 
 /** Downtown Ormoc (Real St / city proper) — inland of Ormoc Bay waterfront. */
 export const ORMOC_CENTER = { lat: 11.0105, lng: 124.6085 };
@@ -290,47 +288,13 @@ const CATEGORY_LANDMARKS = {
 
 const SUGGEST_LANDMARKS = Object.values(CATEGORY_LANDMARKS).flat();
 
-const LIGHT_STYLE = [
-  { elementType: 'geometry', stylers: [{ color: '#f5f5f5' }] },
-  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#f5f5f5' }] },
-  { featureType: 'administrative.land_parcel', elementType: 'labels.text.fill', stylers: [{ color: '#bdbdbd' }] },
-  { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#eeeeee' }] },
-  { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#757575' }] },
-  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#e5e5e5' }] },
-  { featureType: 'poi.park', elementType: 'labels.text.fill', stylers: [{ color: '#9e9e9e' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
-  { featureType: 'road.arterial', elementType: 'labels.text.fill', stylers: [{ color: '#757575' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#dadada' }] },
-  { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
-  { featureType: 'road.local', elementType: 'labels.text.fill', stylers: [{ color: '#9e9e9e' }] },
-  { featureType: 'transit.line', elementType: 'geometry', stylers: [{ color: '#e5e5e5' }] },
-  { featureType: 'transit.station', elementType: 'geometry', stylers: [{ color: '#eeeeee' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c9c9c9' }] },
-  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#9e9e9e' }] },
-];
+const MAPLIBRE_CSS = 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css';
+const MAPLIBRE_JS = 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js';
 
-const DARK_STYLE = [
-  { elementType: 'geometry', stylers: [{ color: '#242f3e' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#242f3e' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] },
-  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
-  { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
-  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#263c3f' }] },
-  { featureType: 'poi.park', elementType: 'labels.text.fill', stylers: [{ color: '#6b9a76' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#38414e' }] },
-  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#212a37' }] },
-  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#9ca5b3' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#746855' }] },
-  { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#1f2835' }] },
-  { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#f3d19c' }] },
-  { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#2f3948' }] },
-  { featureType: 'transit.station', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#17263c' }] },
-  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#515c6d' }] },
-  { featureType: 'water', elementType: 'labels.text.stroke', stylers: [{ color: '#17263c' }] },
-];
+const OSM_ATTR = '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
+const ESRI_ATTR = 'Tiles © Esri';
+const GOOGLE_ATTR = 'Imagery © Google';
+const TOPO_ATTR = `${OSM_ATTR} © <a href="https://opentopomap.org" target="_blank" rel="noopener">OpenTopoMap</a>`;
 
 /** Layer ids used by the Map layers picker. */
 export const MAP_LAYERS = [
@@ -339,18 +303,117 @@ export const MAP_LAYERS = [
   { id: 'dark', label: 'Dark' },
   { id: 'satellite', label: 'Satellite' },
   { id: 'terrain', label: 'Terrain' },
-  { id: 'google', label: 'Google Map' },
 ];
 
+/**
+ * Basemap configs for MapLibre (no API key).
+ * Streets/light/dark use free OpenFreeMap vector styles for sharper labels.
+ */
 const LAYER_CONFIG = {
-  streets: { mapTypeId: 'roadmap', styles: null },
-  light: { mapTypeId: 'roadmap', styles: LIGHT_STYLE },
-  dark: { mapTypeId: 'roadmap', styles: DARK_STYLE },
-  satellite: { mapTypeId: 'hybrid', styles: null },
-  terrain: { mapTypeId: 'terrain', styles: null },
-  google: { mapTypeId: 'roadmap', styles: null },
-  roadmap: { mapTypeId: 'roadmap', styles: null },
+  streets: {
+    kind: 'style-url',
+    styleUrl: 'https://tiles.openfreemap.org/styles/liberty',
+  },
+  light: {
+    kind: 'style-url',
+    styleUrl: 'https://tiles.openfreemap.org/styles/positron',
+  },
+  dark: {
+    kind: 'style-url',
+    styleUrl: 'https://tiles.openfreemap.org/styles/dark',
+  },
+  satellite: {
+    kind: 'raster',
+    // Google satellite tiles stay sharp at city zoom; Esri World Imagery blurs in Ormoc past ~z16.
+    tiles: [
+      'https://mt0.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+      'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+      'https://mt2.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+      'https://mt3.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+    ],
+    overlays: [
+      {
+        id: 'labels',
+        tiles: [
+          'https://mt0.google.com/vt/lyrs=h&x={x}&y={y}&z={z}',
+          'https://mt1.google.com/vt/lyrs=h&x={x}&y={y}&z={z}',
+          'https://mt2.google.com/vt/lyrs=h&x={x}&y={y}&z={z}',
+          'https://mt3.google.com/vt/lyrs=h&x={x}&y={y}&z={z}',
+        ],
+        attribution: GOOGLE_ATTR,
+      },
+    ],
+    attribution: GOOGLE_ATTR,
+    maxzoom: 21,
+    mapMaxZoom: 20,
+  },
+  terrain: {
+    kind: 'raster',
+    tiles: [
+      'https://a.tile.opentopomap.org/{z}/{x}/{y}.png',
+      'https://b.tile.opentopomap.org/{z}/{x}/{y}.png',
+      'https://c.tile.opentopomap.org/{z}/{x}/{y}.png',
+    ],
+    attribution: TOPO_ATTR,
+    maxzoom: 17,
+  },
+  google: null,
+  roadmap: null,
 };
+
+LAYER_CONFIG.google = LAYER_CONFIG.streets;
+LAYER_CONFIG.roadmap = LAYER_CONFIG.streets;
+
+function buildRasterStyle(cfg) {
+  const maxzoom = cfg.maxzoom || 19;
+  const sources = {
+    basemap: {
+      type: 'raster',
+      tiles: cfg.tiles,
+      tileSize: 256,
+      attribution: cfg.attribution,
+      maxzoom,
+    },
+  };
+  const layers = [{
+    id: 'basemap',
+    type: 'raster',
+    source: 'basemap',
+    paint: {
+      'raster-fade-duration': 0,
+      'raster-resampling': 'linear',
+      'raster-opacity': 1,
+    },
+  }];
+
+  (cfg.overlays || []).forEach((overlay) => {
+    const sourceId = `overlay-${overlay.id}`;
+    sources[sourceId] = {
+      type: 'raster',
+      tiles: overlay.tiles,
+      tileSize: 256,
+      attribution: overlay.attribution || cfg.attribution,
+      maxzoom: overlay.maxzoom || maxzoom,
+    };
+    layers.push({
+      id: sourceId,
+      type: 'raster',
+      source: sourceId,
+      paint: {
+        'raster-fade-duration': 0,
+        'raster-resampling': 'linear',
+      },
+    });
+  });
+
+  return { version: 8, sources, layers };
+}
+
+function resolveMapStyle(layerId) {
+  const cfg = LAYER_CONFIG[layerId] || LAYER_CONFIG.streets;
+  if (cfg.kind === 'style-url') return cfg.styleUrl;
+  return buildRasterStyle(cfg);
+}
 
 /** Convert lat/lng + zoom to XYZ tile indexes (same as GPS layers panel). */
 function latLngToTile(lat, lng, zoom) {
@@ -372,17 +435,17 @@ export function getLayerPreviewUrl(layerId, { zoom = 13 } = {}) {
   const { tileX, tileY } = latLngToTile(ORMOC_CENTER.lat, ORMOC_CENTER.lng, zoom);
   // ArcGIS street tiles (OSM CDN often blocks hotlinked browser previews).
   const streets = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/${zoom}/${tileY}/${tileX}`;
-  const imagery = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${tileY}/${tileX}`;
-  const places = `https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/${zoom}/${tileY}/${tileX}`;
-  const roads = `https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/${zoom}/${tileY}/${tileX}`;
+  const imagery = `https://mt1.google.com/vt/lyrs=s&x=${tileX}&y=${tileY}&z=${zoom}`;
+  const labels = `https://mt1.google.com/vt/lyrs=h&x=${tileX}&y=${tileY}&z=${zoom}`;
 
   const previews = {
     streets,
     light: `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/${zoom}/${tileY}/${tileX}`,
     dark: `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/${zoom}/${tileY}/${tileX}`,
-    satellite: [places, roads, imagery],
+    satellite: [labels, imagery],
     terrain: `https://a.tile.opentopomap.org/${zoom}/${tileX}/${tileY}.png`,
     google: streets,
+    roadmap: streets,
   };
 
   return previews[layerId] || streets;
@@ -398,8 +461,7 @@ export function getLayerPreviewBackground(layerId) {
 }
 
 /**
- * Demo Street View iframe embed (no Street View JS / Static API).
- * Uses the classic Google Maps svembed URL.
+ * Street View iframe embed (opens Google's public svembed — no Maps JS key).
  */
 export function getStreetViewEmbedUrl(place) {
   const lat = Number(place.lat);
@@ -412,178 +474,163 @@ export function getStreetViewEmbedUrl(place) {
   );
 }
 
-/** Street View Static image of the area (simple <img> URL). */
-export function getStreetViewStaticUrl(place, { width = 640, height = 360 } = {}) {
-  const key = getMapsApiKey();
-  const lat = Number(place.lat);
-  const lon = Number(place.lon);
-  if (!key || !Number.isFinite(lat) || !Number.isFinite(lon)) return '';
-  const size = `${Math.min(640, Math.max(80, width))}x${Math.min(640, Math.max(80, height))}`;
-  return (
-    'https://maps.googleapis.com/maps/api/streetview'
-    + `?size=${encodeURIComponent(size)}`
-    + `&location=${encodeURIComponent(`${lat},${lon}`)}`
-    + '&fov=80&pitch=0&radius=120'
-    + `&key=${encodeURIComponent(key)}`
-  );
-}
-
-const placePhotoCache = new Map();
-
-/**
- * Fetch a Google Places photo URL for a named spot near lat/lon.
- * Returns '' when Places has no usable photo (caller should keep its own fallback image).
- */
-export async function fetchGooglePlacePhotoUrl(place, { maxWidth = 640 } = {}) {
-  const name = String(place?.name || '').trim();
-  const lat = Number(place?.lat);
-  const lon = Number(place?.lon);
-  const cacheKey = `${name}|${lat}|${lon}|${maxWidth}`;
-  if (placePhotoCache.has(cacheKey)) return placePhotoCache.get(cacheKey);
-
-  try {
-    const maps = await loadGoogleMaps();
-    if (!maps?.places?.PlacesService || !name) {
-      placePhotoCache.set(cacheKey, '');
-      return '';
-    }
-
-    const attribution = document.createElement('div');
-    const service = new maps.places.PlacesService(attribution);
-    const location = (Number.isFinite(lat) && Number.isFinite(lon))
-      ? new maps.LatLng(lat, lon)
-      : null;
-
-    const candidates = await new Promise((resolve) => {
-      const finish = (results, status) => {
-        if (status === maps.places.PlacesServiceStatus.OK && results?.length) resolve(results);
-        else resolve([]);
-      };
-
-      // textSearch usually returns photos; bias near the spot when possible.
-      const request = {
-        query: `${name}, Ormoc City, Leyte, Philippines`,
-      };
-      if (location) {
-        request.location = location;
-        request.radius = 12000;
-      }
-      service.textSearch(request, finish);
-    });
-
-    let best = candidates[0];
-    if (location && candidates.length > 1) {
-      // Prefer the nearest match with photos.
-      best = candidates
-        .map((item) => {
-          const p = item.geometry?.location;
-          const d = p
-            ? maps.geometry?.spherical?.computeDistanceBetween?.(location, p)
-              ?? ((Number(p.lat()) - lat) ** 2 + (Number(p.lng()) - lon) ** 2)
-            : Number.POSITIVE_INFINITY;
-          return { item, d, hasPhotos: Boolean(item.photos?.length) };
-        })
-        .sort((a, b) => Number(b.hasPhotos) - Number(a.hasPhotos) || a.d - b.d)[0]?.item
-        || best;
-    }
-
-    const photo = best?.photos?.[0];
-    if (photo && typeof photo.getUrl === 'function') {
-      const url = photo.getUrl({ maxWidth });
-      placePhotoCache.set(cacheKey, url);
-      return url;
-    }
-
-    if (best?.place_id) {
-      const detailPhoto = await new Promise((resolve) => {
-        service.getDetails({
-          placeId: best.place_id,
-          fields: ['photos'],
-        }, (detail, status) => {
-          if (status === maps.places.PlacesServiceStatus.OK && detail?.photos?.[0]) {
-            resolve(detail.photos[0].getUrl({ maxWidth }));
-          } else resolve('');
-        });
-      });
-      if (detailPhoto) {
-        placePhotoCache.set(cacheKey, detailPhoto);
-        return detailPhoto;
-      }
-    }
-  } catch (_) {
-    /* caller keeps fallback image */
-  }
-
-  placePhotoCache.set(cacheKey, '');
+/** @deprecated Google Static Street View removed — returns empty. */
+export function getStreetViewStaticUrl() {
   return '';
 }
 
-let mapsPromise = null;
-
-function getMapsApiKey() {
-  const env = getEnv();
-  return (
-    env.GOOGLE_MAPS_API_KEY
-    || env.GOOGLE_MAPS_KEY
-    || ''
-  ).trim();
+/** @deprecated Google Places photos removed — keep local tourist images. */
+export async function fetchGooglePlacePhotoUrl() {
+  return '';
 }
 
-export function loadGoogleMaps() {
-  if (window.google?.maps) return Promise.resolve(window.google.maps);
-  if (mapsPromise) return mapsPromise;
+let mapLibrePromise = null;
 
-  const key = getMapsApiKey();
-  if (!key) {
-    return Promise.reject(new Error('Google Maps API key is missing. Set GOOGLE_MAPS_API_KEY in Vercel env (Production) or .env.production, then redeploy.'));
-  }
+export function loadMapLibre() {
+  if (window.maplibregl) return Promise.resolve(window.maplibregl);
+  if (mapLibrePromise) return mapLibrePromise;
 
-  mapsPromise = new Promise((resolve, reject) => {
-    const callbackName = `__ormocgoMapsInit_${Date.now()}`;
-    window[callbackName] = () => {
-      delete window[callbackName];
-      if (window.google?.maps) resolve(window.google.maps);
-      else reject(new Error('Google Maps failed to initialize'));
-    };
+  mapLibrePromise = new Promise((resolve, reject) => {
+    if (!document.querySelector('link[data-ormoc-maplibre]')) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = MAPLIBRE_CSS;
+      link.dataset.ormocMaplibre = '1';
+      document.head.appendChild(link);
+    }
+
+    const existing = document.querySelector('script[data-ormoc-maplibre]');
+    if (existing) {
+      existing.addEventListener('load', () => {
+        if (window.maplibregl) resolve(window.maplibregl);
+        else reject(new Error('MapLibre failed to initialize'));
+      });
+      existing.addEventListener('error', () => {
+        mapLibrePromise = null;
+        reject(new Error('Could not load MapLibre'));
+      });
+      return;
+    }
 
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places&callback=${callbackName}&v=weekly`;
+    script.src = MAPLIBRE_JS;
     script.async = true;
-    script.defer = true;
+    script.dataset.ormocMaplibre = '1';
+    script.onload = () => {
+      if (window.maplibregl) resolve(window.maplibregl);
+      else reject(new Error('MapLibre failed to initialize'));
+    };
     script.onerror = () => {
-      delete window[callbackName];
-      mapsPromise = null;
-      reject(new Error('Could not load Google Maps'));
+      mapLibrePromise = null;
+      reject(new Error('Could not load MapLibre'));
     };
     document.head.appendChild(script);
   });
 
-  return mapsPromise;
+  return mapLibrePromise;
 }
 
-export function createOrmocMap(container, { locate = true, mapType = 'google' } = {}) {
-  return loadGoogleMaps().then((maps) => {
-    const initial = LAYER_CONFIG[mapType] || LAYER_CONFIG.google;
-    const map = new maps.Map(container, {
-      center: ORMOC_CENTER,
+/** Compat alias — map no longer uses Google Maps JS. */
+export function loadGoogleMaps() {
+  return loadMapLibre();
+}
+
+function toLngLat(input) {
+  if (Array.isArray(input)) {
+    return { lat: Number(input[0]), lng: Number(input[1]) };
+  }
+  return {
+    lat: Number(input?.lat),
+    lng: Number(input?.lng ?? input?.lon),
+  };
+}
+
+function circlePolygon(lng, lat, radiusM, steps = 64) {
+  const coords = [];
+  const latRad = (lat * Math.PI) / 180;
+  for (let i = 0; i <= steps; i += 1) {
+    const angle = (i / steps) * Math.PI * 2;
+    const dx = radiusM * Math.cos(angle);
+    const dy = radiusM * Math.sin(angle);
+    const dLat = dy / 111320;
+    const dLng = dx / (111320 * Math.cos(latRad));
+    coords.push([lng + dLng, lat + dLat]);
+  }
+  return coords;
+}
+
+function makePinElement({ label = '', tone = 'place' } = {}) {
+  const el = document.createElement('button');
+  el.type = 'button';
+  el.className = `ormoc-map-pin ormoc-map-pin--${tone}`;
+  el.setAttribute('aria-label', label || 'Place');
+  if (label && tone !== 'place') {
+    el.innerHTML = `<span>${escapeHtml(label)}</span>`;
+  }
+  return el;
+}
+
+function makeUserElement(headingDeg = null) {
+  const el = document.createElement('div');
+  el.className = 'ormoc-map-user';
+  el.title = 'You are here';
+  el.innerHTML = headingDeg == null
+    ? '<span class="ormoc-map-user-dot"></span>'
+    : `<span class="ormoc-map-user-arrow" style="transform:rotate(${Number(headingDeg)}deg)"></span>`;
+  return el;
+}
+
+export function createOrmocMap(container, { locate = true, mapType = 'streets' } = {}) {
+  return loadMapLibre().then((maplibregl) => {
+    const initialType = LAYER_CONFIG[mapType] ? mapType : 'streets';
+    const initialCfg = LAYER_CONFIG[initialType] || LAYER_CONFIG.streets;
+    const map = new maplibregl.Map({
+      container,
+      style: resolveMapStyle(initialType),
+      center: [ORMOC_CENTER.lng, ORMOC_CENTER.lat],
       zoom: ORMOC_ZOOM,
-      mapTypeId: initial.mapTypeId,
-      styles: initial.styles || undefined,
-      disableDefaultUI: true,
-      zoomControl: false,
-      mapTypeControl: false,
-      streetViewControl: false,
-      fullscreenControl: false,
-      clickableIcons: true,
-      gestureHandling: 'greedy',
+      maxZoom: initialCfg.mapMaxZoom || 22,
+      attributionControl: false,
+      dragRotate: false,
+      pitchWithRotate: false,
+      pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
     });
 
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
+
     const markers = [];
-    const routeOverlays = [];
+    const routeMarkers = [];
     let userMarker = null;
-    let userAccuracy = null;
     let routeStartMarker = null;
-    let infoWindow = new maps.InfoWindow();
+    let popup = null;
+    let accuracyReady = false;
+
+    const mapFacade = {
+      setCenter(center) {
+        const { lat, lng } = toLngLat(center);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+        map.setCenter([lng, lat]);
+      },
+      setZoom(zoom) {
+        if (Number.isFinite(zoom)) map.setZoom(zoom);
+      },
+      panTo(center) {
+        const { lat, lng } = toLngLat(center);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+        map.easeTo({ center: [lng, lat] });
+      },
+      getCenter() {
+        const c = map.getCenter();
+        return { lat: c.lat, lng: c.lng };
+      },
+      fitBounds(bounds, padding = 64) {
+        map.fitBounds(bounds, {
+          padding: typeof padding === 'number' ? padding : 64,
+          maxZoom: 17,
+        });
+      },
+      _gl: map,
+    };
 
     let streetViewFs = document.getElementById('streetview-fs');
     if (!streetViewFs) {
@@ -642,7 +689,14 @@ export function createOrmocMap(container, { locate = true, mapType = 'google' } 
       });
     }
 
-    function openPlaceCard(place, marker = null) {
+    function closePopup() {
+      if (popup) {
+        popup.remove();
+        popup = null;
+      }
+    }
+
+    function openPlaceCard(place, anchorLngLat = null) {
       const rawTitle = place.name || 'Place';
       const title = escapeHtml(rawTitle);
       const subtitle = escapeHtml(place.display_name || '');
@@ -664,80 +718,284 @@ export function createOrmocMap(container, { locate = true, mapType = 'google' } 
           </div>`
         : '';
       const embedUrl = getStreetViewEmbedUrl(place);
-      infoWindow.setContent(`
-        <div class="place-iw">
-          <div class="place-iw-copy">
-            <strong>${title}</strong>
-            <div class="place-iw-sub">${subtitle}</div>
-          </div>
-          ${phoneHtml}
-          ${embedUrl ? `
-            <button
-              type="button"
-              class="place-iw-street-btn"
-              data-open-streetview
-              data-streetview-url="${escapeHtml(embedUrl)}"
-              data-streetview-title="${title}"
-            >
-              Open Street View
-            </button>
-          ` : '<div class="place-iw-street-empty">No Street View nearby</div>'}
-        </div>
-      `);
+      const lat = Number(place.lat);
+      const lon = Number(place.lon);
+      const lngLat = anchorLngLat || (
+        Number.isFinite(lat) && Number.isFinite(lon) ? [lon, lat] : null
+      );
+      if (!lngLat) return;
 
-      maps.event.addListenerOnce(infoWindow, 'domready', () => {
-        const btn = document.querySelector('.place-iw [data-open-streetview]');
-        if (!btn || btn.dataset.bound === '1') return;
-        btn.dataset.bound = '1';
-        btn.addEventListener('click', (e) => {
+      closePopup();
+      popup = new maplibregl.Popup({
+        offset: 18,
+        maxWidth: '280px',
+        className: 'ormoc-map-popup',
+        closeButton: true,
+        closeOnClick: true,
+      })
+        .setLngLat(lngLat)
+        .setHTML(`
+          <div class="place-iw">
+            <div class="place-iw-copy">
+              <strong>${title}</strong>
+              <div class="place-iw-sub">${subtitle}</div>
+            </div>
+            ${phoneHtml}
+            <div class="place-iw-actions">
+              <button type="button" class="place-iw-route-btn" data-route-to>
+                Route here
+              </button>
+              ${embedUrl ? `
+                <button
+                  type="button"
+                  class="place-iw-street-btn"
+                  data-open-streetview
+                  data-streetview-url="${escapeHtml(embedUrl)}"
+                  data-streetview-title="${title}"
+                >
+                  Open Street View
+                </button>
+              ` : '<div class="place-iw-street-empty">No Street View nearby</div>'}
+            </div>
+          </div>
+        `)
+        .addTo(map);
+
+      const root = popup.getElement();
+      const streetBtn = root?.querySelector('[data-open-streetview]');
+      if (streetBtn && streetBtn.dataset.bound !== '1') {
+        streetBtn.dataset.bound = '1';
+        streetBtn.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
-          openStreetViewFs(btn.dataset.streetviewUrl, btn.dataset.streetviewTitle || rawTitle);
+          openStreetViewFs(streetBtn.dataset.streetviewUrl, streetBtn.dataset.streetviewTitle || rawTitle);
         });
-      });
+      }
 
-      if (marker) infoWindow.open({ map, anchor: marker });
-      else {
-        infoWindow.setPosition({ lat: Number(place.lat), lng: Number(place.lon) });
-        infoWindow.open(map);
+      const routeBtn = root?.querySelector('[data-route-to]');
+      if (routeBtn && routeBtn.dataset.bound !== '1') {
+        routeBtn.dataset.bound = '1';
+        routeBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          closePopup();
+          window.dispatchEvent(new CustomEvent('ormocgo:route-to-place', {
+            detail: {
+              lat,
+              lon,
+              name: place.name || rawTitle,
+              display_name: place.display_name || '',
+            },
+          }));
+        });
       }
     }
 
+    function ensureAccuracyLayer() {
+      if (accuracyReady || !map.getStyle()) return;
+      if (!map.getSource('user-accuracy')) {
+        map.addSource('user-accuracy', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] },
+        });
+      }
+      if (!map.getLayer('user-accuracy-fill')) {
+        map.addLayer({
+          id: 'user-accuracy-fill',
+          type: 'fill',
+          source: 'user-accuracy',
+          paint: {
+            'fill-color': '#1a73e8',
+            'fill-opacity': 0.14,
+          },
+        });
+      }
+      if (!map.getLayer('user-accuracy-line')) {
+        map.addLayer({
+          id: 'user-accuracy-line',
+          type: 'line',
+          source: 'user-accuracy',
+          paint: {
+            'line-color': '#1a73e8',
+            'line-opacity': 0.28,
+            'line-width': 1,
+          },
+        });
+      }
+      accuracyReady = true;
+    }
+
+    function setAccuracyCircle(position, radiusM) {
+      ensureAccuracyLayer();
+      const source = map.getSource('user-accuracy');
+      if (!source) return;
+      const radius = Math.max(12, Math.min(80, Number(radiusM) || 0));
+      source.setData({
+        type: 'FeatureCollection',
+        features: [{
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'Polygon',
+            coordinates: [circlePolygon(position.lng, position.lat, radius)],
+          },
+        }],
+      });
+    }
+
+    function clearAccuracyCircle() {
+      const source = map.getSource('user-accuracy');
+      if (source) {
+        source.setData({ type: 'FeatureCollection', features: [] });
+      }
+    }
+
+    let lastRouteCoords = null;
+
+    function routeFeature(lineCoords) {
+      return {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: lineCoords,
+        },
+      };
+    }
+
+    function ensureRouteLayer() {
+      if (!map.getStyle()) return false;
+      try {
+        if (!map.getSource('ormoc-route')) {
+          map.addSource('ormoc-route', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] },
+          });
+        }
+        if (!map.getLayer('ormoc-route-casing')) {
+          map.addLayer({
+            id: 'ormoc-route-casing',
+            type: 'line',
+            source: 'ormoc-route',
+            layout: {
+              'line-cap': 'round',
+              'line-join': 'round',
+            },
+            paint: {
+              'line-color': '#ffffff',
+              'line-width': 9,
+              'line-opacity': 0.95,
+            },
+          });
+        }
+        if (!map.getLayer('ormoc-route-line')) {
+          map.addLayer({
+            id: 'ormoc-route-line',
+            type: 'line',
+            source: 'ormoc-route',
+            layout: {
+              'line-cap': 'round',
+              'line-join': 'round',
+            },
+            paint: {
+              'line-color': '#2563eb',
+              'line-width': 5,
+              'line-opacity': 1,
+            },
+          });
+        }
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function paintRouteLine(lineCoords) {
+      if (!lineCoords?.length) return false;
+      if (!ensureRouteLayer()) return false;
+      const source = map.getSource('ormoc-route');
+      if (!source) return false;
+      source.setData(routeFeature(lineCoords));
+      return true;
+    }
+
+    function whenStyleReady(fn) {
+      const run = () => {
+        try {
+          fn();
+        } catch (_) {
+          map.once('style.load', () => requestAnimationFrame(run));
+        }
+      };
+      if (map.isStyleLoaded()) {
+        run();
+        return;
+      }
+      // `load` only fires once; style switches need `style.load`.
+      map.once('style.load', () => requestAnimationFrame(run));
+    }
+
     const api = {
-      maps,
-      map,
+      maps: maplibregl,
+      map: mapFacade,
       clearMarkers() {
-        infoWindow.close();
-        markers.splice(0).forEach((marker) => marker.setMap(null));
+        closePopup();
+        markers.splice(0).forEach((marker) => marker.remove());
       },
       clearRoute() {
-        routeOverlays.splice(0).forEach((overlay) => overlay.setMap(null));
+        routeMarkers.splice(0).forEach((marker) => marker.remove());
+        routeStartMarker = null;
+        lastRouteCoords = null;
+        const source = map.getSource('ormoc-route');
+        if (source) {
+          source.setData({ type: 'FeatureCollection', features: [] });
+        }
       },
       setMapType(type) {
-        const next = LAYER_CONFIG[type] || LAYER_CONFIG.google;
-        map.setOptions({
-          mapTypeId: next.mapTypeId,
-          styles: next.styles || [],
+        const next = LAYER_CONFIG[type] ? type : 'streets';
+        const nextCfg = LAYER_CONFIG[next] || LAYER_CONFIG.streets;
+        const center = map.getCenter();
+        const zoom = map.getZoom();
+        const bearing = map.getBearing();
+        const pitch = map.getPitch();
+        const maxZoom = nextCfg.mapMaxZoom || 22;
+        const savedRoute = lastRouteCoords ? lastRouteCoords.slice() : null;
+        accuracyReady = false;
+        map.setMaxZoom(maxZoom);
+        map.setStyle(resolveMapStyle(next));
+        map.once('style.load', () => {
+          map.setCenter(center);
+          map.setZoom(Math.min(zoom, maxZoom));
+          map.setBearing(bearing);
+          map.setPitch(pitch);
+          ensureRouteLayer();
+          ensureAccuracyLayer();
+          if (savedRoute?.length) {
+            lastRouteCoords = savedRoute;
+            paintRouteLine(savedRoute);
+          }
         });
       },
       setStatusMarkers(places = []) {
         api.clearMarkers();
-        const bounds = new maps.LatLngBounds();
+        const bounds = new maplibregl.LngLatBounds();
         let count = 0;
 
         places.forEach((place) => {
           const lat = Number(place.lat);
           const lon = Number(place.lon);
           if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-          const position = { lat, lng: lon };
-          const marker = new maps.Marker({
-            map,
-            position,
-            title: place.name || 'Place',
+          const el = makePinElement({ label: place.name || 'Place', tone: 'place' });
+          const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+            .setLngLat([lon, lat])
+            .addTo(map);
+          el.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            openPlaceCard(place, [lon, lat]);
           });
-          marker.addListener('click', () => openPlaceCard(place, marker));
           markers.push(marker);
-          bounds.extend(position);
+          bounds.extend([lon, lat]);
           count += 1;
         });
 
@@ -745,16 +1003,15 @@ export function createOrmocMap(container, { locate = true, mapType = 'google' } 
           map.setCenter(bounds.getCenter());
           map.setZoom(16);
         } else if (count > 1) {
-          map.fitBounds(bounds, 64);
+          map.fitBounds(bounds, { padding: 64, maxZoom: 16 });
         }
       },
       focusPlace(place, { zoom = 17 } = {}) {
         const lat = Number(place.lat);
         const lon = Number(place.lon);
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-        map.panTo({ lat, lng: lon });
-        map.setZoom(zoom);
-        openPlaceCard(place);
+        map.easeTo({ center: [lon, lat], zoom });
+        openPlaceCard(place, [lon, lat]);
       },
       setUserLocation(latlng, {
         accuracy = 0,
@@ -762,134 +1019,103 @@ export function createOrmocMap(container, { locate = true, mapType = 'google' } 
         follow = false,
         moveStart = false,
       } = {}) {
-        const position = Array.isArray(latlng)
-          ? { lat: latlng[0], lng: latlng[1] }
-          : { lat: Number(latlng.lat), lng: Number(latlng.lng ?? latlng.lon) };
+        const position = toLngLat(latlng);
         if (!Number.isFinite(position.lat) || !Number.isFinite(position.lng)) return;
 
         const headingDeg = Number.isFinite(heading) ? heading : null;
-        const icon = headingDeg == null
-          ? {
-            path: maps.SymbolPath.CIRCLE,
-            scale: 9,
-            fillColor: '#1a73e8',
-            fillOpacity: 1,
-            strokeColor: '#ffffff',
-            strokeWeight: 3,
-          }
-          : {
-            path: maps.SymbolPath.FORWARD_CLOSED_ARROW,
-            scale: 5,
-            fillColor: '#1a73e8',
-            fillOpacity: 1,
-            strokeColor: '#ffffff',
-            strokeWeight: 2,
-            rotation: headingDeg,
-          };
+        const el = makeUserElement(headingDeg);
 
-        if (!userMarker) {
-          userMarker = new maps.Marker({
-            map,
-            position,
-            title: 'You are here',
-            zIndex: 999,
-            icon,
-          });
-        } else {
-          userMarker.setPosition(position);
-          userMarker.setIcon(icon);
-        }
+        if (userMarker) userMarker.remove();
+        userMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
+          .setLngLat([position.lng, position.lat])
+          .addTo(map);
 
-        const radius = Math.max(12, Math.min(80, Number(accuracy) || 0));
-        if (!userAccuracy) {
-          userAccuracy = new maps.Circle({
-            map,
-            center: position,
-            radius,
-            fillColor: '#1a73e8',
-            fillOpacity: 0.14,
-            strokeColor: '#1a73e8',
-            strokeOpacity: 0.28,
-            strokeWeight: 1,
-            clickable: false,
-            zIndex: 1,
-          });
-        } else {
-          userAccuracy.setCenter(position);
-          userAccuracy.setRadius(radius);
-        }
+        whenStyleReady(() => setAccuracyCircle(position, accuracy));
 
         if (moveStart && routeStartMarker) {
-          routeStartMarker.setPosition(position);
+          routeStartMarker.setLngLat([position.lng, position.lat]);
         }
 
         if (follow) {
-          map.panTo(position);
+          map.easeTo({ center: [position.lng, position.lat] });
         }
       },
       clearUserLocation() {
         if (userMarker) {
-          userMarker.setMap(null);
+          userMarker.remove();
           userMarker = null;
         }
-        if (userAccuracy) {
-          userAccuracy.setMap(null);
-          userAccuracy = null;
-        }
+        clearAccuracyCircle();
       },
       drawRoute(coordinates = [], summary = {}) {
-        api.clearRoute();
+        routeMarkers.splice(0).forEach((marker) => marker.remove());
         routeStartMarker = null;
-        if (!coordinates.length) return;
-
-        // OSRM returns [lon, lat]
-        const path = coordinates.map(([lon, lat]) => ({ lat, lng: lon }));
-        const line = new maps.Polyline({
-          path,
-          geodesic: true,
-          strokeColor: '#2563eb',
-          strokeOpacity: 0.95,
-          strokeWeight: 5,
-          map,
-        });
-        routeOverlays.push(line);
-
-        const start = path[0];
-        const end = path[path.length - 1];
-        const liveStart = Boolean(summary.liveStart);
-
-        if (!liveStart) {
-          routeStartMarker = new maps.Marker({
-            map,
-            position: start,
-            title: 'Start',
-            label: { text: 'A', color: '#fff', fontWeight: '700' },
-          });
-          routeOverlays.push(routeStartMarker);
+        if (!coordinates.length) {
+          lastRouteCoords = null;
+          const source = map.getSource('ormoc-route');
+          if (source) source.setData({ type: 'FeatureCollection', features: [] });
+          return;
         }
 
-        routeOverlays.push(new maps.Marker({
-          map,
-          position: end,
-          title: summary.label || 'Destination',
-          label: { text: 'B', color: '#fff', fontWeight: '700' },
-        }));
+        // OSRM returns [lon, lat]
+        const lineCoords = coordinates
+          .map((point) => {
+            const lon = Number(point?.[0]);
+            const lat = Number(point?.[1]);
+            return (Number.isFinite(lon) && Number.isFinite(lat)) ? [lon, lat] : null;
+          })
+          .filter(Boolean);
+        if (lineCoords.length < 2) return;
+
+        lastRouteCoords = lineCoords;
+        whenStyleReady(() => {
+          if (!paintRouteLine(lineCoords)) {
+            map.once('style.load', () => paintRouteLine(lineCoords));
+          }
+        });
+
+        const start = lineCoords[0];
+        const end = lineCoords[lineCoords.length - 1];
+        const liveStart = Boolean(summary.liveStart);
+
+        if (!liveStart && start) {
+          const startEl = makePinElement({ label: 'A', tone: 'route' });
+          routeStartMarker = new maplibregl.Marker({ element: startEl, anchor: 'bottom' })
+            .setLngLat(start)
+            .addTo(map);
+          routeMarkers.push(routeStartMarker);
+        }
+
+        if (end) {
+          const endEl = makePinElement({ label: 'B', tone: 'route' });
+          routeMarkers.push(
+            new maplibregl.Marker({ element: endEl, anchor: 'bottom' })
+              .setLngLat(end)
+              .addTo(map),
+          );
+        }
 
         if (summary.fit !== false) {
-          const bounds = new maps.LatLngBounds();
-          path.forEach((point) => bounds.extend(point));
+          const bounds = lineCoords.reduce(
+            (b, coord) => b.extend(coord),
+            new maplibregl.LngLatBounds(lineCoords[0], lineCoords[0]),
+          );
           if (liveStart && userMarker) {
-            bounds.extend(userMarker.getPosition());
+            bounds.extend(userMarker.getLngLat());
           }
-          map.fitBounds(bounds, 72);
+          map.fitBounds(bounds, { padding: 72, maxZoom: 17 });
         }
       },
       invalidate() {
-        setTimeout(() => {
-          maps.event.trigger(map, 'resize');
-        }, 60);
+        setTimeout(() => map.resize(), 60);
       },
     };
+
+    map.on('load', () => {
+      ensureRouteLayer();
+      ensureAccuracyLayer();
+      map.resize();
+    });
 
     if (locate && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -903,7 +1129,7 @@ export function createOrmocMap(container, { locate = true, mapType = 'google' } 
             && latlng.lng <= ORMOC_BOUNDS.east
           );
           if (inOrmoc) {
-            map.setCenter(latlng);
+            map.setCenter([latlng.lng, latlng.lat]);
             map.setZoom(15);
           }
         },
@@ -912,7 +1138,7 @@ export function createOrmocMap(container, { locate = true, mapType = 'google' } 
       );
     }
 
-    setTimeout(() => maps.event.trigger(map, 'resize'), 120);
+    setTimeout(() => map.resize(), 120);
     return api;
   });
 }

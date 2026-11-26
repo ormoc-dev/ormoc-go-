@@ -10,7 +10,6 @@ const defaults = {
   APP_VERSION: '0.1.30',
   SUPABASE_URL: '',
   SUPABASE_ANON_KEY: '',
-  GOOGLE_MAPS_API_KEY: '',
   PWA_NAME: 'OrmocGo',
   PWA_SHORT_NAME: 'OrmocGo',
   PWA_DESCRIPTION: 'Community city guide for Ormoc — local details, places, and helpful tools.',
@@ -69,8 +68,7 @@ async function loadFromEnvFile(file = envFileForHost()) {
 }
 
 function missingCriticalKeys(env) {
-  return !String(env?.GOOGLE_MAPS_API_KEY || '').trim()
-    || !String(env?.SUPABASE_URL || '').trim()
+  return !String(env?.SUPABASE_URL || '').trim()
     || !String(env?.SUPABASE_ANON_KEY || '').trim();
 }
 
