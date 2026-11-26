@@ -632,6 +632,8 @@ function renderMapPanel() {
             <path d="M8.2 3.8h2.1c.6 0 1.1.4 1.2 1l.4 2.3a1.2 1.2 0 0 1-.3 1.1l-1.3 1.3a12.2 12.2 0 0 0 4.2 4.2l1.3-1.3a1.2 1.2 0 0 1 1.1-.3l2.3.4c.6.1 1 .6 1 1.2v2.1a1.2 1.2 0 0 1-1.3 1.2A14.8 14.8 0 0 1 3.8 5.1a1.2 1.2 0 0 1 1.2-1.3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
           </svg>
         </button>
+        </div>
+
         <button type="button" class="map-locate-btn" id="map-locate-btn" aria-label="My location" aria-pressed="false" title="My location">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/>
@@ -639,7 +641,6 @@ function renderMapPanel() {
             <path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
           </svg>
         </button>
-        </div>
       </div>
 
       <div class="map-emergency-modal" id="map-emergency-modal" hidden>
@@ -1184,6 +1185,16 @@ function renderMorePanel(user) {
                 <span class="more-row-copy">
                   <strong>What's inside</strong>
                   <span>How OrmocGo helps locals and visitors</span>
+                </span>
+                <span class="more-row-chevron" aria-hidden="true">›</span>
+              </button>
+              <button type="button" class="more-row" data-more-sheet="heritage">
+                <span class="more-row-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="m21 15-4.5-4.5L7 20"/></svg>
+                </span>
+                <span class="more-row-copy">
+                  <strong>Photo Archive</strong>
+                  <span>Historical photographs of Ormoc's heritage</span>
                 </span>
                 <span class="more-row-chevron" aria-hidden="true">›</span>
               </button>
@@ -1953,7 +1964,7 @@ export function mountDashboard(root = document) {
         setStatus(`No ${selected.label.toLowerCase()} found nearby`);
         return;
       }
-      mapApi.setStatusMarkers(places);
+      mapApi.setStatusMarkers(places, { category: selected.id });
       setStatus(`${places.length} ${selected.label.toLowerCase()} · tap a pin`);
     } catch (err) {
       setStatus(err.message || 'Category search failed', { type: 'error' });

@@ -4,6 +4,44 @@ import {
   bindLoginForm,
   bindSignupForm,
 } from '../lib/auth-forms.js';
+import { ORMOC_ARCHIVE, ORMOC_ARCHIVE_SOURCE } from '../data/ormoc-archive.js';
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function heritageArchiveHtml() {
+  const cards = ORMOC_ARCHIVE.map((item) => {
+    const title = escapeHtml(item.title);
+    const caption = escapeHtml(item.caption);
+    const src = escapeHtml(item.src);
+    return `
+      <figure class="archive-card">
+        <img class="archive-card-img" src="${src}" alt="${title}" loading="lazy" decoding="async" width="640" height="480">
+        <figcaption class="archive-card-caption">
+          <strong>${title}</strong>
+          ${caption ? `<span>${caption}</span>` : ''}
+        </figcaption>
+      </figure>
+    `;
+  }).join('');
+
+  return `
+    <p class="sheet-lead">Historical photographs preserving Ormoc City's heritage.</p>
+    <div class="archive-grid" role="list">
+      ${cards}
+    </div>
+    <p class="sheet-desc archive-credit">
+      Source:
+      <a class="sheet-credit-link" href="${escapeHtml(ORMOC_ARCHIVE_SOURCE.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ORMOC_ARCHIVE_SOURCE.label)}</a>
+    </p>
+  `;
+}
 
 export function renderBottomSheets() {
   return `
@@ -32,12 +70,19 @@ const sheets = {
       <ul class="sheet-list">
         <li><strong>Discover Ormoc</strong> — Explore places, local shops, and must-try food spots around the city.</li>
         <li><strong>Get Around</strong> — Helpful details for local transport and finding your way in Ormoc.</li>
+        <li><strong>Photo Archive</strong> — Historical photographs preserving Ormoc City's heritage.</li>
         <li><strong>Help Center</strong> <span class="sheet-soon">Coming soon</span> — Quick access to emergency hotlines and essential numbers.</li>
         <li><strong>Disaster Assistance</strong> <span class="sheet-soon">Coming soon</span> — Updates and support when calamities hit.</li>
       </ul>
       <p class="sheet-desc">We're sharing an early preview for feedback and contributions — from UI/UX ideas to features every Ormocanon should have.</p>
       <p class="sheet-desc">This is a community project, 100% non-profit and ad-free. No subscriptions, no paywalls — just a genuine effort to make living in Ormoc smarter and easier.</p>
     `,
+  },
+  heritage: {
+    title: 'Photo Archive',
+    auth: false,
+    tall: true,
+    html: () => heritageArchiveHtml(),
   },
   support: {
     title: 'Support',
@@ -120,6 +165,10 @@ export function mountBottomSheets(root = document, { openSheet: initialSheet = n
     if (panelEl) {
       panelEl.classList.toggle('is-auth', Boolean(sheet.auth));
       resetSheetHeight();
+      if (sheet.tall) {
+        const { max } = sheetHeights();
+        setSheetHeight(max, { expanded: true });
+      }
     }
     sheetRoot.hidden = false;
     requestAnimationFrame(() => sheetRoot.classList.add('is-open'));

@@ -30,6 +30,8 @@ const PRECACHE = [
   './js/lib/google-button.js',
   './js/lib/password-field.js',
   './js/data/ormoc-slides.js',
+  './js/data/ormoc-barangays.js',
+  './js/data/ormoc-archive.js',
   './js/components/header.js',
   './js/components/footer.js',
   './js/components/sidebar.js',

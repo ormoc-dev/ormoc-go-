@@ -2,6 +2,8 @@
  * MapLibre + OSM/Carto/Esri tiles + Nominatim search + OSRM routing for Ormoc.
  */
 
+import { ORMOC_BARANGAYS } from '../data/ormoc-barangays.js';
+
 /** Downtown Ormoc (Real St / city proper) — inland of Ormoc Bay waterfront. */
 export const ORMOC_CENTER = { lat: 11.0105, lng: 124.6085 };
 export const ORMOC_ZOOM = 14;
@@ -31,8 +33,64 @@ const CATEGORY_QUERIES = {
     'supermarket Ormoc City',
   ],
   schools: [
+    // Public elementary
+    'Alta Vista Elementary School Ormoc',
+    'Bagong Elementary School Ormoc',
+    'Biliboy Elementary School Ormoc',
+    'Camp Downes Elementary School Ormoc',
+    'Can-adieng Elementary School Ormoc',
+    'Dolores Elementary School Ormoc',
+    'Ipil Central School Ormoc',
+    'Mahayahay Elementary School Ormoc',
+    'Patag Elementary School Ormoc',
+    'Ormoc City Central School',
+    'San Jose Elementary School Ormoc',
+    'Tongonan Elementary School Ormoc',
+    'Valencia Central School Ormoc',
+    // Public high schools
+    'Dolores National High School Ormoc',
+    'Ipil National High School Ormoc',
+    'Linao National High School Ormoc',
+    'Margen National High School Ormoc',
+    'New Ormoc City National High School',
+    'Rustico Capahi Sr Memorial National High School Ormoc',
+    'Genaro B Lurenana National High School Ormoc',
+    'Salvacion National High School Ormoc',
+    'Liloan National High School Ormoc',
+    'Pedro G Banez National High School Ormoc',
+    'Cabintan National High School Ormoc',
+    'Matica-a National High School Ormoc',
+    'Ormoc City Night High School',
+    'Julian C Gantuangco National High School Ormoc',
+    'Ormoc City Senior High School',
+    // Integrated / specialized
+    'Mas-in Integrated School Ormoc',
+    'Gaas Integrated School Ormoc',
+    'Donghol Integrated School Ormoc',
+    'San Antonio Integrated School Ormoc',
+    'Ormoc City SPED Center',
+    'San Isidro Integrated School Ormoc',
+    'Liberty Integrated School Ormoc',
+    'Lao Integrated School Ormoc',
+    'Lake Danao Elementary School Ormoc',
+    'Monterico Integrated School Ormoc',
+    'Nueva Vista Integrated School Ormoc',
+    'Ormoc City Regional Sports Academy',
+    // Private colleges
+    "Saint Peter's College Ormoc",
+    'San Lorenzo Ruiz College Ormoc',
+    'Western Leyte College Ormoc',
+    'ACLC College Ormoc',
+    'STI College Ormoc',
+    'Ormoc City Institute of Technology',
+    'Sto Nino College Ormoc',
+    // Other private schools
+    'School of the Morning Star Ormoc',
+    'Ormoc Adventist Multigrade School',
+    "Saint Paul's School Ormoc",
+    'Ormoc Immaculate Conception School',
+    'Ormoc Holy Trinity Montessori Academy',
     'school Ormoc City',
-    'university Ormoc City',
     'college Ormoc City',
   ],
   hospitals: [
@@ -71,15 +129,131 @@ const CATEGORY_QUERIES = {
     'chapel Ormoc City',
   ],
   terminals: [
-    'bus terminal Ormoc',
-    'Ormoc City Terminal',
-    'port Ormoc',
-    'van terminal Ormoc',
+    'Ormoc City Transport Terminal',
+    'Ormoc City Bus Terminal',
+    'Ormoc Port',
   ],
 };
 
 /** Known Ormoc landmarks as reliable fallbacks when search is incomplete. */
 const CATEGORY_LANDMARKS = {
+  schools: [
+    // Public elementary
+    {
+      lat: 11.067672,
+      lon: 124.6418648,
+      name: 'Bagong Elementary School',
+      display_name: 'Bagong Elementary School, Ormoc City, Leyte',
+      note: 'Public elementary',
+    },
+    {
+      lat: 10.9960181,
+      lon: 124.6185099,
+      name: 'Camp Downes Elementary School',
+      display_name: 'Camp Downes Elementary School, Ormoc City, Leyte',
+      note: 'Public elementary',
+    },
+    {
+      lat: 11.001542,
+      lon: 124.6150133,
+      name: 'Can-adieng Elementary School',
+      display_name: 'Can-adieng Elementary School, Ormoc City, Leyte',
+      note: 'Public elementary',
+    },
+    {
+      lat: 11.073474,
+      lon: 124.6246085,
+      name: 'Dolores Elementary School',
+      display_name: 'Dolores Elementary School, Ormoc City, Leyte',
+      note: 'Public elementary',
+    },
+    {
+      lat: 10.9761046,
+      lon: 124.6343255,
+      name: 'Ipil Central School',
+      display_name: 'Ipil Central School, Ormoc City, Leyte',
+      note: 'Public elementary',
+    },
+    {
+      lat: 10.9942129,
+      lon: 124.6785897,
+      name: 'Mahayahay Elementary School',
+      display_name: 'Mahayahay Elementary School, Ormoc City, Leyte',
+      note: 'Public elementary',
+    },
+    {
+      lat: 11.0224625,
+      lon: 124.6298203,
+      name: 'Patag Elementary School',
+      display_name: 'Patag Elementary School, Ormoc City, Leyte',
+      note: 'Public elementary',
+    },
+    {
+      lat: 11.0088111,
+      lon: 124.6109634,
+      name: 'Ormoc City Central School',
+      display_name: 'Ormoc City Central School, Ormoc City, Leyte',
+      note: 'Public elementary',
+    },
+    {
+      lat: 11.0992679,
+      lon: 124.5518626,
+      name: 'San Jose Elementary School',
+      display_name: 'San Jose Elementary School, Ormoc City, Leyte',
+      note: 'Public elementary',
+    },
+    {
+      lat: 11.0714789,
+      lon: 124.7014768,
+      name: 'Lake Danao Elementary School',
+      display_name: 'Lake Danao Elementary School, Ormoc City, Leyte',
+      note: 'Integrated / elementary',
+    },
+    // Public high schools
+    {
+      lat: 11.0110394,
+      lon: 124.6040691,
+      name: 'New Ormoc City National High School',
+      display_name: 'New Ormoc City National High School, Ormoc City, Leyte',
+      note: 'Public high school',
+    },
+    {
+      lat: 11.0109159,
+      lon: 124.6052057,
+      name: 'Ormoc City Senior High School',
+      display_name: 'Ormoc City Senior High School, Ormoc City, Leyte',
+      note: 'Public senior high school',
+    },
+    // Private colleges
+    {
+      lat: 11.0091853,
+      lon: 124.6098772,
+      name: 'Western Leyte College',
+      display_name: 'Western Leyte College, Ormoc City, Leyte',
+      note: 'Private college',
+    },
+    {
+      lat: 11.0312306,
+      lon: 124.6035143,
+      name: 'San Lorenzo Ruiz College',
+      display_name: 'San Lorenzo Ruiz College, Ormoc City, Leyte',
+      note: 'Private college',
+    },
+    {
+      lat: 11.0233227,
+      lon: 124.604787,
+      name: 'ACLC College',
+      display_name: 'ACLC College, Ormoc City, Leyte',
+      note: 'Private college',
+    },
+    {
+      lat: 11.0049718,
+      lon: 124.6100296,
+      name: 'STI College Ormoc',
+      display_name: 'Systems Technology Institute (STI), Ormoc City, Leyte',
+      note: 'Private college',
+    },
+  ],
   police: [
     {
       lat: 10.9987846,
@@ -201,16 +375,18 @@ const CATEGORY_LANDMARKS = {
   ],
   terminals: [
     {
-      lat: 11.0052,
-      lon: 124.6108,
-      name: 'Ormoc City Terminal',
-      display_name: 'Ormoc City Terminal, Ormoc City, Leyte',
+      lat: 11.00485,
+      lon: 124.6071,
+      name: 'Ormoc City Transport Terminal',
+      display_name: 'Ormoc City Bus & Jeepney Terminal, Ebony St, Ormoc City, Leyte',
+      note: 'Main city bus and jeepney terminal',
     },
     {
-      lat: 11.0018,
-      lon: 124.6079,
+      lat: 11.0065,
+      lon: 124.6072,
       name: 'Ormoc Port',
-      display_name: 'Ormoc Port, Ormoc City, Leyte',
+      display_name: 'Ormoc Port / Pier, Ormoc City, Leyte',
+      note: 'Ferry and shipping terminal',
     },
   ],
   parks: [
@@ -286,7 +462,10 @@ const CATEGORY_LANDMARKS = {
   ],
 };
 
-const SUGGEST_LANDMARKS = Object.values(CATEGORY_LANDMARKS).flat();
+const SUGGEST_LANDMARKS = [
+  ...Object.values(CATEGORY_LANDMARKS).flat(),
+  ...ORMOC_BARANGAYS,
+];
 
 const MAPLIBRE_CSS = 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css';
 const MAPLIBRE_JS = 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js';
@@ -559,14 +738,64 @@ function circlePolygon(lng, lat, radiusM, steps = 64) {
   return coords;
 }
 
-function makePinElement({ label = '', tone = 'place' } = {}) {
+const PIN_CATEGORIES = new Set([
+  'hospitals', 'police', 'parks', 'food', 'churches', 'terminals', 'malls', 'schools', 'place',
+]);
+
+function resolvePinCategory(place = {}, fallback = 'place') {
+  const raw = String(place.category || place.type || fallback || 'place').toLowerCase();
+  if (PIN_CATEGORIES.has(raw)) return raw;
+  if (raw === 'hospital' || raw === 'clinic' || raw === 'doctors') return 'hospitals';
+  if (raw === 'police') return 'police';
+  if (raw === 'park' || raw === 'garden') return 'parks';
+  if (raw === 'restaurant' || raw === 'cafe' || raw === 'fast_food' || raw === 'food_court') return 'food';
+  if (raw === 'place_of_worship' || raw === 'church' || raw === 'chapel') return 'churches';
+  if (raw === 'bus_station' || raw === 'ferry_terminal' || raw === 'taxi') return 'terminals';
+  if (raw === 'mall' || raw === 'department_store' || raw === 'supermarket') return 'malls';
+  if (raw === 'school' || raw === 'university' || raw === 'college') return 'schools';
+  return 'place';
+}
+
+function pinGlyph(category) {
+  const common = 'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+  switch (category) {
+    case 'hospitals':
+      return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6v5h5v6h-5v5H9v-5H4V9h5V4z" ${common}/></svg>`;
+    case 'police':
+      return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.5 3 8.4 7 9.5 4-1.1 7-5 7-9.5V6l-7-3z" ${common}/><path d="M9.5 12.2 11 13.7l3.8-3.8" ${common}/></svg>`;
+    case 'parks':
+      return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21V11" ${common}/><path d="M7 14c0-3.2 2.2-6 5-6s5 2.8 5 6" ${common}/><path d="M8.5 9.5C7 8 7 5.8 8.8 4.8 10.2 4 11.7 4.7 12 6c.3-1.3 1.8-2 3.2-1.2C17 5.8 17 8 15.5 9.5" ${common}/></svg>`;
+    case 'food':
+      return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v8M7 11v10M5 3c0 2.5 1 4.5 2 5M9 3c0 2.5-1 4.5-2 5M17 3v18M15 3h4c0 3-1.5 5-2 5h0c-.5 0-2-2-2-5z" ${common}/></svg>`;
+    case 'churches':
+      return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v5M10 4h4" ${common}/><path d="M6 10h12v11H6V10z" ${common}/><path d="M10 21v-5h4v5" ${common}/></svg>`;
+    case 'terminals':
+      return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17h14M6 17l1-10h10l1 10" ${common}/><path d="M8 7V5h8v2M8 17v2M16 17v2M8.5 11h.01M15.5 11h.01" ${common}/></svg>`;
+    case 'malls':
+      return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h16l-1.2 11H5.2L4 9z" ${common}/><path d="M8 9V7a4 4 0 0 1 8 0v2" ${common}/></svg>`;
+    case 'schools':
+      return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10 12 5l9 5-9 5-9-5z" ${common}/><path d="M7 12.5V17c0 .8 2.2 2 5 2s5-1.2 5-2v-4.5" ${common}/></svg>`;
+    default:
+      return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-5.4-7-11a7 7 0 1 1 14 0c0 5.6-7 11-7 11z" ${common}/><circle cx="12" cy="10" r="2.4" ${common}/></svg>`;
+  }
+}
+
+function makePinElement({ label = '', tone = 'place', category = '' } = {}) {
   const el = document.createElement('button');
   el.type = 'button';
-  el.className = `ormoc-map-pin ormoc-map-pin--${tone}`;
-  el.setAttribute('aria-label', label || 'Place');
-  if (label && tone !== 'place') {
+  const pinCategory = resolvePinCategory({ category }, tone === 'place' ? 'place' : tone);
+
+  if (tone === 'route') {
+    el.className = 'ormoc-map-pin ormoc-map-pin--route';
+    el.setAttribute('aria-label', label || 'Route point');
     el.innerHTML = `<span>${escapeHtml(label)}</span>`;
+    return el;
   }
+
+  el.className = `ormoc-map-pin ormoc-map-pin--place ormoc-map-pin--${pinCategory}`;
+  el.setAttribute('aria-label', label || pinCategory);
+  el.dataset.category = pinCategory;
+  el.innerHTML = `<span class="ormoc-map-pin-body"><span class="ormoc-map-pin-glyph">${pinGlyph(pinCategory)}</span></span>`;
   return el;
 }
 
@@ -595,8 +824,6 @@ export function createOrmocMap(container, { locate = true, mapType = 'streets' }
       pitchWithRotate: false,
       pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
     });
-
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
 
     const markers = [];
     const routeMarkers = [];
@@ -976,7 +1203,7 @@ export function createOrmocMap(container, { locate = true, mapType = 'streets' }
           }
         });
       },
-      setStatusMarkers(places = []) {
+      setStatusMarkers(places = [], { category = '' } = {}) {
         api.clearMarkers();
         const bounds = new maplibregl.LngLatBounds();
         let count = 0;
@@ -985,7 +1212,12 @@ export function createOrmocMap(container, { locate = true, mapType = 'streets' }
           const lat = Number(place.lat);
           const lon = Number(place.lon);
           if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-          const el = makePinElement({ label: place.name || 'Place', tone: 'place' });
+          const pinCategory = resolvePinCategory(place, category || 'place');
+          const el = makePinElement({
+            label: place.name || 'Place',
+            tone: 'place',
+            category: pinCategory,
+          });
           const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
             .setLngLat([lon, lat])
             .addTo(map);
@@ -1182,24 +1414,46 @@ function mergePlaces(...lists) {
 }
 
 function matchLandmarks(query, limit = 6) {
-  const q = String(query || '').trim().toLowerCase();
-  if (!q) return [];
-  const tokens = q.split(/\s+/).filter(Boolean);
-  return SUGGEST_LANDMARKS
-    .filter((place) => {
-      const hay = `${place.name} ${place.display_name}`.toLowerCase();
-      return tokens.every((token) => hay.includes(token));
-    })
-    .slice(0, limit)
-    .map((place) => ({ ...place }));
+  const raw = String(query || '').trim().toLowerCase();
+  if (!raw) return [];
+  const wantsBrgy = /\b(brgy\.?|barangay)\b/i.test(raw);
+  const stripped = raw.replace(/^(brgy\.?|barangay)\s+/i, '').trim();
+  const tokens = stripped.split(/\s+/).filter(Boolean);
+  if (!tokens.length) return [];
+
+  const scored = SUGGEST_LANDMARKS.map((place) => {
+    const name = String(place.name || '').toLowerCase();
+    const display = String(place.display_name || '').toLowerCase();
+    const bareName = name.replace(/^(brgy\.?|barangay)\s+/i, '');
+    const hay = `${name} ${display} ${bareName}`;
+    if (!tokens.every((token) => hay.includes(token))) return null;
+
+    let score = 0;
+    if (bareName === stripped || name === raw) score += 24;
+    else if (bareName.startsWith(stripped) || name.startsWith(raw)) score += 14;
+    else if (bareName.includes(stripped)) score += 8;
+    if (place.type === 'barangay' || place.category === 'barangay') score += 6;
+    if (wantsBrgy && (place.type === 'barangay' || place.category === 'barangay')) score += 10;
+    return { place, score };
+  }).filter(Boolean);
+
+  scored.sort((a, b) => b.score - a.score || a.place.name.localeCompare(b.place.name));
+  return scored.slice(0, limit).map((item) => ({ ...item.place }));
 }
 
 export async function searchPlaces(query, { limit = 8, bounded = true } = {}) {
   const q = String(query || '').trim();
   if (!q) return [];
 
+  const local = matchLandmarks(q, limit);
+
+  // Prefer barangay phrasing for Nominatim when user types brgy/barangay.
+  const nominatimQ = /\b(brgy\.?|barangay)\b/i.test(q)
+    ? (/ormoc/i.test(q) ? q.replace(/\bbrgy\.?\b/i, 'Barangay') : `Barangay ${q.replace(/^(brgy\.?|barangay)\s+/i, '')}, Ormoc City, Leyte, Philippines`)
+    : (/ormoc/i.test(q) ? q : `${q}, Ormoc City, Leyte, Philippines`);
+
   const url = new URL(`${NOMINATIM}/search`);
-  url.searchParams.set('q', /ormoc/i.test(q) ? q : `${q}, Ormoc City, Leyte, Philippines`);
+  url.searchParams.set('q', nominatimQ);
   url.searchParams.set('format', 'jsonv2');
   url.searchParams.set('addressdetails', '1');
   url.searchParams.set('limit', String(limit));
@@ -1207,31 +1461,30 @@ export async function searchPlaces(query, { limit = 8, bounded = true } = {}) {
   // Keep soft bias by viewbox; do not force bounded for brand names like SM / Robinsons.
   if (bounded) url.searchParams.set('bounded', '1');
 
-  const res = await fetch(url.toString(), {
-    headers: {
-      Accept: 'application/json',
-      'Accept-Language': 'en',
-    },
-  });
-  if (!res.ok) throw new Error(`Search failed (${res.status})`);
-  const data = await res.json();
-  return (data || []).map(normalizePlace);
-}
-
-/** Instant local landmarks + Nominatim results for the directions suggest list. */
-export async function suggestPlaces(query, { limit = 6 } = {}) {
-  const q = String(query || '').trim();
-  if (q.length < 2) return [];
-
-  const local = matchLandmarks(q, limit);
   let remote = [];
   try {
-    remote = await searchPlaces(q, { limit, bounded: false });
+    const res = await fetch(url.toString(), {
+      headers: {
+        Accept: 'application/json',
+        'Accept-Language': 'en',
+      },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      remote = (data || []).map(normalizePlace);
+    }
   } catch (_) {
     remote = [];
   }
 
   return mergePlaces(local, remote).slice(0, limit);
+}
+
+/** Instant local landmarks/barangays + Nominatim results for map + routes suggest. */
+export async function suggestPlaces(query, { limit = 6 } = {}) {
+  const q = String(query || '').trim();
+  if (q.length < 2) return [];
+  return searchPlaces(q, { limit, bounded: false });
 }
 
 async function searchOverpass(filters, { fallbackName = 'Place', typeKey = 'amenity' } = {}) {
@@ -1284,6 +1537,16 @@ function searchMallsOverpass() {
   ], { fallbackName: 'Mall', typeKey: 'shop' });
 }
 
+/** Overpass: schools / colleges / universities inside Ormoc bbox. */
+function searchSchoolsOverpass() {
+  return searchOverpass([
+    '["amenity"="school"]',
+    '["amenity"="college"]',
+    '["amenity"="university"]',
+    '["amenity"="kindergarten"]',
+  ], { fallbackName: 'School', typeKey: 'amenity' });
+}
+
 function searchPoliceOverpass() {
   return searchOverpass([
     '["amenity"="police"]',
@@ -1304,18 +1567,29 @@ export async function searchCategory(categoryId, { limit = 16 } = {}) {
   if (!queries?.length) return [];
 
   const landmarkSeed = CATEGORY_LANDMARKS[categoryId] || [];
+  const effectiveLimit = categoryId === 'schools'
+    ? Math.max(limit, 48)
+    : limit;
 
-  // Curated police/hospital pins match official Ormoc hotlines — prefer them over noisy OSM names.
-  if ((categoryId === 'police' || categoryId === 'hospitals') && landmarkSeed.length) {
-    return landmarkSeed.slice(0, Math.max(limit, landmarkSeed.length)).map((place) => ({ ...place }));
+  // Curated pins only — avoid noisy Nominatim floods (esp. terminals).
+  if ((categoryId === 'police' || categoryId === 'hospitals' || categoryId === 'terminals') && landmarkSeed.length) {
+    return landmarkSeed
+      .slice(0, Math.max(effectiveLimit, landmarkSeed.length))
+      .map((place) => ({ ...place, category: categoryId }));
   }
+
+  // Schools: curated pins first, then OSM + named Nominatim lookups.
+  const namedQueries = categoryId === 'schools'
+    ? queries.filter((q) => !/^(school|college|university)\b/i.test(q)).slice(0, 18)
+    : queries;
 
   const settled = await Promise.allSettled([
     ...(categoryId === 'malls' ? [searchMallsOverpass()] : []),
-    ...queries.map((q) => searchPlaces(q, {
-      limit: 5,
+    ...(categoryId === 'schools' ? [searchSchoolsOverpass()] : []),
+    ...namedQueries.map((q) => searchPlaces(q, {
+      limit: categoryId === 'schools' ? 2 : 5,
       // Brand lookups should not be strictly boxed or SM/Robinsons can be missed.
-      bounded: !/sm|robinsons|gaisano/i.test(q),
+      bounded: !/sm|robinsons|gaisano|college|school|sti|aclc/i.test(q),
     })),
   ]);
 
@@ -1323,7 +1597,9 @@ export async function searchCategory(categoryId, { limit = 16 } = {}) {
     .filter((item) => item.status === 'fulfilled')
     .map((item) => item.value);
 
-  return mergePlaces(landmarkSeed, ...found).slice(0, limit);
+  return mergePlaces(landmarkSeed, ...found)
+    .slice(0, effectiveLimit)
+    .map((place) => ({ ...place, category: categoryId }));
 }
 
 async function routeByProfile(from, to, profile) {

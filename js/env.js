@@ -7,7 +7,7 @@ const defaults = {
   APP_NAME: 'OrmocGo',
   APP_ENV: 'local',
   APP_URL: 'https://ormoc-go.vercel.app',
-  APP_VERSION: '0.1.30',
+  APP_VERSION: '0.1.32',
   SUPABASE_URL: '',
   SUPABASE_ANON_KEY: '',
   PWA_NAME: 'OrmocGo',

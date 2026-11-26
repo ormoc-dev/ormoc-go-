@@ -39,6 +39,8 @@ function renderWelcome() {
         <p class="welcome-legal">
           <button type="button" class="legal-link" data-sheet="inside">What's inside</button>
           <span class="legal-sep" aria-hidden="true">|</span>
+          <button type="button" class="legal-link" data-sheet="heritage">Photo Archive</button>
+          <span class="legal-sep" aria-hidden="true">|</span>
           <button type="button" class="legal-link" data-sheet="support">Support</button>
           <span class="legal-sep" aria-hidden="true">|</span>
           <button type="button" class="legal-link" data-sheet="terms">Terms &amp; Condition</button>
