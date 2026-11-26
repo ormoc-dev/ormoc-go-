@@ -1532,7 +1532,7 @@ export function renderDashboard(user) {
       <div class="app-confirm-toast" id="signout-confirm" role="alertdialog" aria-modal="true" aria-labelledby="signout-confirm-title" hidden>
         <div class="app-confirm-toast-card">
           <p class="app-confirm-toast-title" id="signout-confirm-title">Sign out?</p>
-          <p class="app-confirm-toast-copy">You’ll need to sign in again to use your saved profile and places.</p>
+          <p class="app-confirm-toast-copy">You’ll need to sign in again for saved profile, places, and offline mode — offline needs your login data.</p>
           <div class="app-confirm-toast-actions">
             <button type="button" class="app-confirm-toast-cancel" data-signout-cancel>Cancel</button>
             <button type="button" class="app-confirm-toast-ok" data-signout-confirm>Sign out</button>
