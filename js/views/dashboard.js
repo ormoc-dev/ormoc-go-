@@ -547,29 +547,39 @@ function renderMapPanel() {
       <div id="ormoc-map" class="map-canvas" role="application" aria-label="Map of Ormoc"></div>
 
       <div class="map-overlay">
-        <form class="map-search" id="map-search-form" role="search">
-          <label class="map-search-field">
-            <span class="visually-hidden">Search places</span>
-            <input
-              type="search"
-              name="q"
-              id="map-search-input"
-              placeholder="Search places in Ormoc"
-              autocomplete="off"
-              enterkeyhint="search"
-              aria-autocomplete="list"
-              aria-controls="map-suggest"
-              aria-expanded="false"
-            >
-            <span class="map-search-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
-                <path d="m16 16 4.2 4.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-              </svg>
-            </span>
-          </label>
-          <div class="map-suggest" id="map-suggest" hidden role="listbox" aria-label="Place suggestions"></div>
-        </form>
+        <div class="map-search-row">
+          <div class="map-search-brand" aria-hidden="true">
+            <svg class="map-search-brand-svg" viewBox="140 200 760 580" width="40" height="40">
+              <circle class="og-radar" cx="343" cy="489" r="230" fill="none" stroke="#0079FC" stroke-width="18"/>
+              <image class="og-navy" width="1024" height="1024" href="public/assets/icons/icon-og-layer-navy.png"/>
+              <image class="og-inner" width="1024" height="1024" href="public/assets/icons/icon-og-layer-ring.png"/>
+              <image class="og-gee" width="1024" height="1024" href="public/assets/icons/icon-og-layer-g.png"/>
+            </svg>
+          </div>
+          <form class="map-search" id="map-search-form" role="search">
+            <label class="map-search-field">
+              <span class="visually-hidden">Search places</span>
+              <input
+                type="search"
+                name="q"
+                id="map-search-input"
+                placeholder="Search places in Ormoc"
+                autocomplete="off"
+                enterkeyhint="search"
+                aria-autocomplete="list"
+                aria-controls="map-suggest"
+                aria-expanded="false"
+              >
+              <span class="map-search-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+                  <path d="m16 16 4.2 4.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+              </span>
+            </label>
+            <div class="map-suggest" id="map-suggest" hidden role="listbox" aria-label="Place suggestions"></div>
+          </form>
+        </div>
 
         <div class="map-chips" role="toolbar" aria-label="Place categories">
           ${chips}

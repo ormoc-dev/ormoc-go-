@@ -63,6 +63,7 @@
   background: transparent;
 }
 
+.map-overlay .map-search-row,
 .map-overlay .map-search,
 .map-overlay .map-chips,
 .map-overlay .map-side-tools,
@@ -811,12 +812,20 @@ body.emergency-sheet-open {
   display: grid;
 }
 
-.map-search {
-  position: relative;
+.map-search-row {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
   width: min(100%, 560px);
   margin: 0 auto;
-  background: transparent;
   z-index: 540;
+}
+
+.map-search {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  background: transparent;
 }
 
 .map-search-field {
@@ -832,6 +841,81 @@ body.emergency-sheet-open {
   outline: none;
   position: relative;
   z-index: 2;
+}
+
+.map-search-brand {
+  flex: 0 0 auto;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 6px 20px rgba(15, 39, 68, 0.14);
+  padding: 0.3rem;
+}
+
+.map-search-brand-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.map-search-brand-svg .og-radar {
+  transform-box: view-box;
+  transform-origin: 343px 489px;
+  animation: map-og-radar 2.4s ease-out infinite;
+}
+
+.map-search-brand-svg .og-navy {
+  transform-box: view-box;
+  transform-origin: 343px 489px;
+  animation: map-og-navy 3.2s ease-in-out infinite;
+}
+
+.map-search-brand-svg .og-inner {
+  transform-box: view-box;
+  transform-origin: 343px 489px;
+  animation: map-og-inner 2.4s ease-in-out infinite;
+}
+
+.map-search-brand-svg .og-gee {
+  transform-box: view-box;
+  transform-origin: 690px 545px;
+  animation: map-og-gee 3.2s ease-in-out infinite;
+}
+
+@keyframes map-og-radar {
+  0%   { transform: scale(0.45); opacity: 0.45; }
+  70%  { transform: scale(1.45); opacity: 0; }
+  100% { transform: scale(1.45); opacity: 0; }
+}
+
+@keyframes map-og-navy {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.04); }
+}
+
+@keyframes map-og-inner {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(0.86); opacity: 0.9; }
+}
+
+@keyframes map-og-gee {
+  0%, 100% { transform: translateX(0); }
+  50%      { transform: translateX(3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-search-brand-svg .og-radar,
+  .map-search-brand-svg .og-navy,
+  .map-search-brand-svg .og-inner,
+  .map-search-brand-svg .og-gee {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .map-suggest {
