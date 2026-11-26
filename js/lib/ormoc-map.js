@@ -8,10 +8,10 @@ import { getEnv } from '../env.js';
 export const ORMOC_CENTER = { lat: 11.0105, lng: 124.6085 };
 export const ORMOC_ZOOM = 14;
 
-/** Rough bounding box around Ormoc City */
+/** Rough bounding box around Ormoc City (includes outer stations) */
 export const ORMOC_BOUNDS = {
   south: 10.94,
-  north: 11.10,
+  north: 11.12,
   west: 124.50,
   east: 124.72,
 };
@@ -38,20 +38,29 @@ const CATEGORY_QUERIES = {
     'college Ormoc City',
   ],
   hospitals: [
+    'Ormoc Doctors Hospital',
+    'OSPA Farmers Medical Center Ormoc',
+    'Clinica Gatchalian Hospital Ormoc',
+    'Ormoc District Hospital',
     'hospital Ormoc City',
-    'clinic Ormoc City',
-    'Ormoc Doctor Hospital',
-    'Ospa Farmers Medical Center',
   ],
   police: [
-    'police station Ormoc City',
-    'Ormoc City Police Station',
-    'PNP Ormoc',
+    'Ormoc City Police Office Camp Downes',
+    'Ormoc City Police Station Cogon',
+    'Cagbuhangin Police Station Ormoc',
+    'Police Station Liloan Ormoc',
+    'Police Station Linao Ormoc',
+    'Police Station Dolores Ormoc',
+    'Police Station Ipil Ormoc',
   ],
   parks: [
     'park Ormoc City',
+    'Ormoc City Plaza',
     'Lake Danao Ormoc',
-    'plaza Ormoc City',
+    'Lake Janagdan Ormoc',
+    'Sulfatara Ormoc',
+    'Alto Peak Ormoc',
+    "Sal's Pineapple Plantation Ormoc",
   ],
   food: [
     'restaurant Ormoc City',
@@ -71,14 +80,57 @@ const CATEGORY_QUERIES = {
   ],
 };
 
-/** Known Ormoc landmarks as reliable demo fallbacks when search is incomplete. */
+/** Known Ormoc landmarks as reliable fallbacks when search is incomplete. */
 const CATEGORY_LANDMARKS = {
   police: [
     {
-      lat: 11.0057554,
-      lon: 124.6087846,
-      name: 'Ormoc City Police Station 1',
-      display_name: 'Ormoc City Police Station 1, Jose G. Navarro Street, Ormoc City, Leyte',
+      lat: 10.9987846,
+      lon: 124.6168889,
+      name: 'OCPO Headquarters (Oscar Base)',
+      display_name: 'Ormoc City Police Office, Camp Downes, Ormoc City, Leyte',
+      phones: ['0998-598-6690'],
+    },
+    {
+      lat: 11.014122,
+      lon: 124.60351,
+      name: 'Police Station 1 (Cogon)',
+      display_name: 'Police Station 1, Aunubing Street, Brgy. Cogon, Ormoc City, Leyte',
+      phones: ['0998-598-6691'],
+    },
+    {
+      lat: 11.1014901,
+      lon: 124.5842942,
+      name: 'Police Station 2 (Cagbuhangin)',
+      display_name: 'Police Station 2, Kananga–Ormoc Road, Brgy. Cagbuhangin, Ormoc City, Leyte',
+      phones: ['0998-598-6693'],
+    },
+    {
+      lat: 11.040191,
+      lon: 124.549735,
+      name: 'Police Station 3 (Liloan)',
+      display_name: 'Police Station 3, Brgy. Liloan, Ormoc City, Leyte',
+      phones: ['0998-967-4958'],
+    },
+    {
+      lat: 11.015168,
+      lon: 124.59178,
+      name: 'Police Station 4 (Linao)',
+      display_name: 'Police Station 4, Brgy. Linao, Ormoc City, Leyte',
+      phones: ['0970-925-0336'],
+    },
+    {
+      lat: 11.0759007,
+      lon: 124.6296792,
+      name: 'Police Station 5 (Dolores)',
+      display_name: 'Police Station 5, San Pablo–Tongonan Road, Brgy. Dolores, Ormoc City, Leyte',
+      phones: ['0970-061-3278'],
+    },
+    {
+      lat: 10.977421,
+      lon: 124.632237,
+      name: 'Police Station 6 (Ipil)',
+      display_name: 'Police Station 6, Brgy. Ipil, Ormoc City, Leyte',
+      phones: ['0970-056-4173'],
     },
   ],
   malls: [
@@ -121,16 +173,32 @@ const CATEGORY_LANDMARKS = {
   ],
   hospitals: [
     {
-      lat: 11.0115,
-      lon: 124.6068,
-      name: 'Ormoc Doctor Hospital',
-      display_name: 'Ormoc Doctor Hospital, Ormoc City, Leyte',
+      lat: 11.0049913,
+      lon: 124.6118102,
+      name: 'Ormoc Doctors’ Hospital',
+      display_name: 'Ormoc Doctors’ Hospital, Aviles Street, Ormoc City, Leyte',
+      phones: ['0938-037-0876', '0998-581-9610'],
     },
     {
-      lat: 11.0088,
-      lon: 124.6095,
-      name: 'Ospa Farmers Medical Center',
-      display_name: 'Ospa Farmers Medical Center, Ormoc City, Leyte',
+      lat: 11.0040679,
+      lon: 124.6144815,
+      name: 'OSP A Farmers’ Medical Center',
+      display_name: 'OSPA Farmers’ Medical Center, Concepcion Street, Brgy. Can-adieng, Ormoc City, Leyte',
+      phones: ['0945-433-1306', '0905-296-6894'],
+    },
+    {
+      lat: 11.0110983,
+      lon: 124.6095434,
+      name: 'Clinica Gatchalian & Hospital',
+      display_name: 'Clinica Gatchalian Hospital, Juanito T. Kangleon Street, Brgy. West, Ormoc City, Leyte',
+      phones: ['0949-151-2014', '(053) 561-17937'],
+    },
+    {
+      lat: 11.0226196,
+      lon: 124.6031503,
+      name: 'Ormoc District Hospital',
+      display_name: 'Ormoc District Hospital, Merida–Ormoc Road, Ormoc City, Leyte',
+      phones: ['0985-351-7379'],
     },
   ],
   terminals: [
@@ -149,10 +217,73 @@ const CATEGORY_LANDMARKS = {
   ],
   parks: [
     {
+      lat: 11.00417,
+      lon: 124.60806,
+      name: 'Ormoc City Plaza',
+      display_name: 'Ormoc City Plaza, Ormoc City, Leyte',
+    },
+    {
+      lat: 11.03902,
+      lon: 124.61327,
+      name: "Sal's Pineapple Plantation",
+      display_name: "Sal's Pineapple Plantation, Hibunawon, Ormoc City, Leyte",
+    },
+    {
       lat: 11.071,
-      lon: 124.70,
+      lon: 124.7,
       name: 'Lake Danao',
-      display_name: 'Lake Danao Natural Park, Ormoc City, Leyte',
+      display_name: 'Lake Danao, Ormoc City, Leyte',
+    },
+    {
+      lat: 11.10202,
+      lon: 124.71576,
+      name: 'Lake Janagdan',
+      display_name: 'Lake Janagdan, Cabintan, Ormoc City, Leyte',
+    },
+    {
+      lat: 11.10352,
+      lon: 124.74262,
+      name: 'Alto Peak',
+      display_name: 'Alto Peak (Mt. Aminduen), Leyte',
+    },
+    {
+      lat: 11.09596,
+      lon: 124.73713,
+      name: 'Sulfatara',
+      display_name: 'Sulfatara, Cabintan, Ormoc City, Leyte',
+    },
+    {
+      lat: 11.09441,
+      lon: 124.66488,
+      name: 'Supremacy Camp',
+      display_name: 'Supremacy Camp, Brgy. Milagro, Ormoc City, Leyte',
+    },
+  ],
+  /** Suggest/search only — not a map chip category */
+  tourist: [
+    {
+      lat: 11.00503,
+      lon: 124.60904,
+      name: 'Ormoc City Museum',
+      display_name: "People's Museum, Molave St, Ormoc City, Leyte",
+    },
+    {
+      lat: 10.99049,
+      lon: 124.62113,
+      name: 'Sabin Resort Hotel',
+      display_name: 'Sabin Resort Hotel, Ormoc City, Leyte',
+    },
+    {
+      lat: 11.09371,
+      lon: 124.65205,
+      name: '88 Café',
+      display_name: '88 Café, Milagro - Welcome Rd, Ormoc City, Leyte',
+    },
+    {
+      lat: 10.98831,
+      lon: 124.62067,
+      name: "Marta's",
+      display_name: "Marta's Restaurant, Bantigue, Ormoc City, Leyte",
     },
   ],
 };
@@ -515,6 +646,23 @@ export function createOrmocMap(container, { locate = true, mapType = 'google' } 
       const rawTitle = place.name || 'Place';
       const title = escapeHtml(rawTitle);
       const subtitle = escapeHtml(place.display_name || '');
+      const phones = Array.isArray(place.phones)
+        ? place.phones.filter(Boolean)
+        : (place.phone ? [place.phone] : []);
+      const phoneHtml = phones.length
+        ? `<div class="place-iw-phones">
+            ${phones.map((phone) => {
+              const label = escapeHtml(String(phone));
+              const href = escapeHtml(`tel:${String(phone).replace(/[^\d+]/g, '')}`);
+              return `
+                <a class="place-iw-phone" href="${href}">
+                  <span class="place-iw-phone-num">${label}</span>
+                  <span class="place-iw-phone-call">Call</span>
+                </a>
+              `;
+            }).join('')}
+          </div>`
+        : '';
       const embedUrl = getStreetViewEmbedUrl(place);
       infoWindow.setContent(`
         <div class="place-iw">
@@ -522,6 +670,7 @@ export function createOrmocMap(container, { locate = true, mapType = 'google' } 
             <strong>${title}</strong>
             <div class="place-iw-sub">${subtitle}</div>
           </div>
+          ${phoneHtml}
           ${embedUrl ? `
             <button
               type="button"
@@ -930,9 +1079,13 @@ export async function searchCategory(categoryId, { limit = 16 } = {}) {
 
   const landmarkSeed = CATEGORY_LANDMARKS[categoryId] || [];
 
+  // Curated police/hospital pins match official Ormoc hotlines — prefer them over noisy OSM names.
+  if ((categoryId === 'police' || categoryId === 'hospitals') && landmarkSeed.length) {
+    return landmarkSeed.slice(0, Math.max(limit, landmarkSeed.length)).map((place) => ({ ...place }));
+  }
+
   const settled = await Promise.allSettled([
     ...(categoryId === 'malls' ? [searchMallsOverpass()] : []),
-    ...(categoryId === 'police' ? [searchPoliceOverpass()] : []),
     ...queries.map((q) => searchPlaces(q, {
       limit: 5,
       // Brand lookups should not be strictly boxed or SM/Robinsons can be missed.

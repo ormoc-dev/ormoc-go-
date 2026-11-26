@@ -41,9 +41,12 @@ import {
 } from '../lib/user-profile.js';
 import {
   EMERGENCY_SEED,
+  EMERGENCY_GROUPS,
   ensureEmergencyContactsCached,
+  getNearestPlaces,
   groupEmergencyContacts,
   telHref,
+  withDistance,
 } from '../lib/emergency-contacts.js';
 
 const TABS = [
@@ -179,110 +182,231 @@ function persistMoreView(view) {
 
 const MAP_CATEGORIES = [
   { id: 'home', label: 'Home' },
-  { id: 'malls', label: 'Malls' },
-  { id: 'schools', label: 'Schools' },
   { id: 'hospitals', label: 'Hospitals' },
   { id: 'police', label: 'Police' },
   { id: 'parks', label: 'Parks' },
   { id: 'food', label: 'Food' },
   { id: 'churches', label: 'Churches' },
   { id: 'terminals', label: 'Terminals' },
+  { id: 'malls', label: 'Malls' },
+  { id: 'schools', label: 'Schools' },
 ];
 
 function renderEmergencyRows(list) {
-  return list.map((item) => `
-    <div class="map-emergency-row" data-emergency-id="${escapeHtml(item.id)}">
+  return list.map((item) => {
+    const metaParts = [item.distanceLabel, item.note].filter(Boolean);
+    const hasMap = Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lon));
+    const mapBtn = hasMap ? `
+      <button
+        type="button"
+        class="map-emergency-locate"
+        data-emergency-locate
+        data-lat="${escapeHtml(String(item.lat))}"
+        data-lon="${escapeHtml(String(item.lon))}"
+        data-name="${escapeHtml(item.name)}"
+        data-phone="${escapeHtml(item.phone || '')}"
+        data-note="${escapeHtml(item.note || '')}"
+        aria-label="Show ${escapeHtml(item.name)} on map"
+        title="Show on map"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 21s-7-5.4-7-11a7 7 0 1 1 14 0c0 5.6-7 11-7 11Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          <circle cx="12" cy="10" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+        </svg>
+      </button>
+    ` : '';
+    return `
+    <div class="map-emergency-row${item.isNearest ? ' is-nearest' : ''}" data-emergency-id="${escapeHtml(item.id)}">
       <div class="map-emergency-copy">
         <strong>${escapeHtml(item.name)}</strong>
         <a class="map-emergency-phone" href="${escapeHtml(telHref(item.phone))}">${escapeHtml(item.phone)}</a>
-        <span class="map-emergency-meta">${escapeHtml(item.note || '')}</span>
+        <span class="map-emergency-meta">${escapeHtml(metaParts.join(' · '))}</span>
       </div>
-      <a class="map-emergency-call" href="${escapeHtml(telHref(item.phone))}" aria-label="Call ${escapeHtml(item.name)}">Call</a>
+      <div class="map-emergency-actions">
+        ${mapBtn}
+        <a class="map-emergency-call" href="${escapeHtml(telHref(item.phone))}" aria-label="Call ${escapeHtml(item.name)}" title="Call">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8.2 3.8h2.1c.6 0 1.1.4 1.2 1l.4 2.3a1.2 1.2 0 0 1-.3 1.1l-1.3 1.3a12.2 12.2 0 0 0 4.2 4.2l1.3-1.3a1.2 1.2 0 0 1 1.1-.3l2.3.4c.6.1 1 .6 1 1.2v2.1a1.2 1.2 0 0 1-1.3 1.2A14.8 14.8 0 0 1 3.8 5.1a1.2 1.2 0 0 1 1.2-1.3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          </svg>
+        </a>
+      </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
-function renderEmergencyListHtml(contacts = EMERGENCY_SEED, activeGroup = 'hospital') {
-  const { hospitals, police } = groupEmergencyContacts(contacts);
-  const isHospital = activeGroup !== 'police';
-  const rows = isHospital ? hospitals : police;
-  const mapCategory = isHospital ? 'hospitals' : 'police';
+function renderEmergencyListHtml(contacts = EMERGENCY_SEED, activeGroup = 'national') {
+  const grouped = groupEmergencyContacts(contacts);
+  const tab = EMERGENCY_GROUPS.includes(activeGroup) ? activeGroup : 'national';
+  const rowsByTab = {
+    national: grouped.national,
+    rescue: grouped.rescue,
+    police: grouped.police,
+    hospital: grouped.hospitals,
+  };
+  const rows = rowsByTab[tab] || [];
+  const mapCategory = tab === 'police' ? 'police' : tab === 'hospital' ? 'hospitals' : '';
+  const tabLabels = {
+    national: 'National',
+    rescue: 'Rescue',
+    police: 'Police',
+    hospital: 'Hospital',
+  };
+  const nearestId = rows.find((item) => Number.isFinite(item.distanceKm))?.id;
+  const rankedRows = rows.map((item, index) => ({
+    ...item,
+    isNearest: Boolean(nearestId) && item.id === nearestId && index === 0,
+  }));
+  const sortedHint = (tab === 'police' || tab === 'hospital' || tab === 'rescue')
+    && rankedRows.some((item) => item.distanceLabel)
+    ? ' · nearest first'
+    : '';
   return `
     <div class="map-emergency-tabs" role="tablist" aria-label="Emergency categories">
-      <button type="button" class="map-emergency-tab${isHospital ? ' is-active' : ''}" role="tab" aria-selected="${isHospital ? 'true' : 'false'}" data-emergency-tab="hospital">Hospital</button>
-      <button type="button" class="map-emergency-tab${!isHospital ? ' is-active' : ''}" role="tab" aria-selected="${!isHospital ? 'true' : 'false'}" data-emergency-tab="police">Police</button>
+      ${EMERGENCY_GROUPS.map((id) => `
+        <button type="button" class="map-emergency-tab${tab === id ? ' is-active' : ''}" role="tab" aria-selected="${tab === id ? 'true' : 'false'}" data-emergency-tab="${id}">${tabLabels[id]}</button>
+      `).join('')}
     </div>
     <div class="map-emergency-toolbar">
-      <p class="map-emergency-count">${rows.length} contact${rows.length === 1 ? '' : 's'}</p>
-      <button type="button" class="map-emergency-map" data-emergency-category="${mapCategory}">Show on map</button>
+      <p class="map-emergency-count">${rankedRows.length} contact${rankedRows.length === 1 ? '' : 's'}${sortedHint}</p>
+      ${mapCategory ? `<button type="button" class="map-emergency-map" data-emergency-category="${mapCategory}">Show on map</button>` : '<span></span>'}
     </div>
-    <div class="map-emergency-rows" role="tabpanel">${renderEmergencyRows(rows)}</div>
+    <div class="map-emergency-rows" role="tabpanel">${renderEmergencyRows(rankedRows)}</div>
   `;
 }
 
+/** Local favorites + photos from chillandtravel.com/ormoc-tourist-spots */
 const TOURIST_SPOTS = [
   {
+    id: 'ormoc-city-plaza',
+    name: 'Ormoc City Plaza',
+    category: 'City',
+    rating: 4.5,
+    reviews: 312,
+    image: 'public/assets/images/ormoc/tourist-spots/ormoc-city-plaza.jpg',
+    lat: 11.00417,
+    lon: 124.60806,
+    blurb: 'Sea breeze, walks & street food',
+  },
+  {
+    id: 'ormoc-city-museum',
+    name: 'Ormoc City Museum',
+    category: 'Culture',
+    rating: 4.3,
+    reviews: 84,
+    image: 'public/assets/images/ormoc/tourist-spots/ormoc-city-museum.jpg',
+    lat: 11.00503,
+    lon: 124.60904,
+    blurb: "People's Museum in the old City Hall",
+  },
+  {
+    id: 'sals-pineapple',
+    name: "Sal's Pineapple Plantation",
+    category: 'Farm',
+    rating: 4.5,
+    reviews: 90,
+    image: 'public/assets/images/ormoc/tourist-spots/sals-pineapple-plantation.jpg',
+    images: [
+      'public/assets/images/ormoc/tourist-spots/sals-pineapple-plantation.jpg',
+      'public/assets/images/ormoc/tourist-spots/pina-festival.jpg',
+    ],
+    lat: 11.03902,
+    lon: 124.61327,
+    blurb: 'Fresh piña fields in Hibunawon',
+  },
+  {
     id: 'lake-danao',
-    name: 'Lake Danao Natural Park',
-    category: 'Nature park',
+    name: 'Lake Danao',
+    category: 'Nature',
     rating: 4.6,
     reviews: 367,
-    image: 'public/assets/images/ormoc/lake-danao/01-lake-danao.jpg',
-    images: [
-      'public/assets/images/ormoc/lake-danao/01-lake-danao.jpg',
-      'public/assets/images/ormoc/lake-danao/02-lake-danao-park.jpg',
-      'public/assets/images/ormoc/lake-danao/04-calm-reflection.jpg',
-    ],
-    lat: 11.0653,
-    lon: 124.70381,
+    image: 'public/assets/images/ormoc/tourist-spots/lake-danao.jpg',
+    lat: 11.071,
+    lon: 124.7,
     blurb: 'Guitar-shaped highland lake',
   },
   {
-    id: 'ormoc-bay',
-    name: 'Ormoc Bay Walk',
-    category: 'Waterfront',
-    rating: 4.4,
-    reviews: 214,
-    image: 'public/assets/images/ormoc/05-ormoc-bay.jpg',
-    lat: 11.0018,
-    lon: 124.6079,
-    blurb: 'Sunset & bay views',
+    id: 'lake-janagdan',
+    name: 'Lake Janagdan',
+    category: 'Nature',
+    rating: 4.7,
+    reviews: 58,
+    image: 'public/assets/images/ormoc/tourist-spots/lake-janagdan.jpg',
+    lat: 11.10202,
+    lon: 124.71576,
+    blurb: 'Crater lake atop Mt. Janagdan',
   },
   {
-    id: 'rizal-monument',
-    name: 'Rizal Monument',
-    category: 'Landmark',
-    rating: 4.3,
-    reviews: 96,
-    image: 'public/assets/images/ormoc/12-rizal-monument.jpg',
-    lat: 11.0064,
-    lon: 124.6075,
-    blurb: 'City plaza landmark',
-  },
-  {
-    id: 'heavens-peak',
-    name: "Heaven's Peak",
+    id: 'alto-peak',
+    name: 'Alto Peak',
     category: 'Adventure',
-    rating: 4.5,
-    reviews: 86,
-    image: 'public/assets/images/ormoc/heavens-peak/01-highland-view.jpg',
+    rating: 4.6,
+    reviews: 72,
+    // Photos from shellwanders.com Alto Peak guide
+    image: 'public/assets/images/ormoc/tourist-spots/alto-peak.jpg',
     images: [
-      'public/assets/images/ormoc/heavens-peak/01-highland-view.jpg',
+      'public/assets/images/ormoc/tourist-spots/alto-peak.jpg',
+      'public/assets/images/ormoc/tourist-spots/alto-peak-view.jpg',
+      'public/assets/images/ormoc/tourist-spots/alto-peak-sign.jpg',
     ],
-    lat: 11.0837842,
-    lon: 124.7215256,
-    blurb: 'Hilltop overlook',
+    lat: 11.10352,
+    lon: 124.74262,
+    blurb: 'Highest peak in Eastern Visayas',
   },
   {
-    id: 'real-street',
-    name: 'Real Street Corridor',
-    category: 'City vibe',
+    id: 'sulfatara',
+    name: 'Sulfatara',
+    category: 'Nature',
+    rating: 4.8,
+    reviews: 26,
+    image: 'public/assets/images/ormoc/tourist-spots/sulfatara.jpg',
+    lat: 11.09596,
+    lon: 124.73713,
+    blurb: 'Sulfur springs in Cabintan',
+  },
+  {
+    id: 'supremacy-camp',
+    name: 'Supremacy Camp',
+    category: 'Camping',
+    rating: 4.0,
+    reviews: 32,
+    image: 'public/assets/images/ormoc/tourist-spots/supremacy-camp.jpg',
+    lat: 11.09441,
+    lon: 124.66488,
+    blurb: 'Camping & cool air in Milagro',
+  },
+  {
+    id: 'sabin-resort',
+    name: 'Sabin Resort Hotel',
+    category: 'Resort',
     rating: 4.2,
-    reviews: 152,
-    image: 'public/assets/images/ormoc/11-real-st.jpg',
-    lat: 11.0085,
-    lon: 124.6072,
-    blurb: 'Shops & city energy',
+    reviews: 1677,
+    image: 'public/assets/images/ormoc/tourist-spots/sabin-resort-hotel.jpg',
+    lat: 10.99049,
+    lon: 124.62113,
+    blurb: 'Bayfront pool & seaside stay',
+  },
+  {
+    id: '88-cafe',
+    name: '88 Café',
+    category: 'Cafe',
+    rating: 4.4,
+    reviews: 76,
+    image: 'public/assets/images/ormoc/tourist-spots/88-cafe.jpg',
+    lat: 11.09371,
+    lon: 124.65205,
+    blurb: 'Highland coffee in Milagro',
+  },
+  {
+    id: 'martas',
+    name: "Marta's",
+    category: 'Dining',
+    rating: 4.3,
+    reviews: 43,
+    image: 'public/assets/images/ormoc/tourist-spots/martas.jpg',
+    lat: 10.98831,
+    lon: 124.62067,
+    blurb: 'Seaside dining in Bantigue',
   },
 ];
 
@@ -291,27 +415,56 @@ function spotImageList(spot) {
   return spot?.image ? [spot.image] : [];
 }
 
+function googleIdentityData(user) {
+  const identities = Array.isArray(user?.identities) ? user.identities : [];
+  const google = identities.find((item) => item?.provider === 'google');
+  return google?.identity_data && typeof google.identity_data === 'object'
+    ? google.identity_data
+    : {};
+}
+
+function firstNonEmpty(...values) {
+  for (const value of values) {
+    const text = String(value || '').trim();
+    if (text) return text;
+  }
+  return '';
+}
+
 function displayName(user) {
   const meta = user?.user_metadata || {};
+  const google = googleIdentityData(user);
   return (
-    meta.full_name
-    || meta.name
-    || meta.preferred_username
-    || (user?.email ? user.email.split('@')[0] : '')
+    firstNonEmpty(
+      google.full_name,
+      google.name,
+      meta.full_name,
+      meta.name,
+      meta.preferred_username,
+      user?.email ? user.email.split('@')[0] : '',
+    )
     || 'there'
   );
 }
 
 function profilePhotoUrl(user) {
   const meta = user?.user_metadata || {};
-  const fromMeta = meta.avatar_url || meta.picture || meta.avatar || '';
-  if (fromMeta) return String(fromMeta);
+  const google = googleIdentityData(user);
+  const fromMeta = firstNonEmpty(
+    meta.avatar_url,
+    meta.picture,
+    meta.avatar,
+    google.avatar_url,
+    google.picture,
+    google.avatar,
+  );
+  if (fromMeta) return fromMeta;
 
   const identities = Array.isArray(user?.identities) ? user.identities : [];
   for (const identity of identities) {
     const data = identity?.identity_data || {};
-    const url = data.avatar_url || data.picture || data.avatar || '';
-    if (url) return String(url);
+    const url = firstNonEmpty(data.avatar_url, data.picture, data.avatar);
+    if (url) return url;
   }
   return '';
 }
@@ -399,20 +552,20 @@ function renderMapPanel() {
         <form class="map-search" id="map-search-form" role="search">
           <label class="map-search-field">
             <span class="visually-hidden">Search places</span>
+            <input
+              type="search"
+              name="q"
+              id="map-search-input"
+              placeholder="Search places in Ormoc"
+              autocomplete="off"
+              enterkeyhint="search"
+            >
             <span class="map-search-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
                 <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
                 <path d="m16 16 4.2 4.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
               </svg>
             </span>
-            <input
-              type="search"
-              name="q"
-              id="map-search-input"
-              placeholder="Search place, landmark, street, or where to go"
-              autocomplete="off"
-              enterkeyhint="search"
-            >
           </label>
         </form>
 
@@ -456,44 +609,35 @@ function renderMapPanel() {
             </div>
           </div>
         </div>
-        <button type="button" class="map-saved-btn" id="map-saved-btn" aria-label="Open saved places and routes">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M7 4.8h10a1.2 1.2 0 0 1 1.2 1.2v13.1L12 15.7 5.8 19.1V6A1.2 1.2 0 0 1 7 4.8Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-          </svg>
-        </button>
         <button type="button" class="map-tourist-btn" id="map-tourist-btn" aria-label="Show tourist spots" aria-pressed="false" aria-controls="tourist-rail">
           <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 21s-7-5.4-7-11a7 7 0 1 1 14 0c0 5.6-7 11-7 11Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-            <circle cx="12" cy="10" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M4.8 8.8h2.2l1.4-2.1h7.2l1.4 2.1h2.2A1.6 1.6 0 0 1 20.8 10.4v7.2a1.6 1.6 0 0 1-1.6 1.6H4.8a1.6 1.6 0 0 1-1.6-1.6v-7.2a1.6 1.6 0 0 1 1.6-1.6Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            <circle cx="12" cy="14" r="3.1" fill="none" stroke="currentColor" stroke-width="1.8"/>
           </svg>
         </button>
         <button type="button" class="map-emergency-btn" id="map-emergency-btn" aria-label="Emergency contacts" aria-haspopup="dialog" aria-expanded="false" aria-controls="map-emergency-modal">
           <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 3.5 20 20H4L12 3.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-            <path d="M12 10v4.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-            <circle cx="12" cy="17" r="1" fill="currentColor"/>
+            <path d="M8.2 3.8h2.1c.6 0 1.1.4 1.2 1l.4 2.3a1.2 1.2 0 0 1-.3 1.1l-1.3 1.3a12.2 12.2 0 0 0 4.2 4.2l1.3-1.3a1.2 1.2 0 0 1 1.1-.3l2.3.4c.6.1 1 .6 1 1.2v2.1a1.2 1.2 0 0 1-1.3 1.2A14.8 14.8 0 0 1 3.8 5.1a1.2 1.2 0 0 1 1.2-1.3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
           </svg>
         </button>
         </div>
       </div>
 
-      <div class="map-status" id="map-status" aria-live="polite">
-        Loading Google Maps…
-      </div>
-
       <div class="map-emergency-modal" id="map-emergency-modal" hidden>
         <button type="button" class="map-emergency-backdrop" data-emergency-close aria-label="Close emergency contacts"></button>
-        <div class="map-emergency-panel" role="dialog" aria-modal="true" aria-labelledby="map-emergency-title">
-          <div class="map-emergency-handle" aria-hidden="true"></div>
-          <header class="map-emergency-header">
-            <div>
-              <h2 class="map-emergency-title" id="map-emergency-title">Emergency</h2>
-              <p class="map-emergency-note">Offline-ready sample numbers · Hospital &amp; police</p>
-            </div>
-            <button type="button" class="map-emergency-close" data-emergency-close aria-label="Close">Close</button>
-          </header>
+        <div class="map-emergency-panel" id="map-emergency-panel" role="dialog" aria-modal="true" aria-labelledby="map-emergency-title">
+          <div class="map-emergency-drag" data-emergency-drag>
+            <div class="map-emergency-handle" aria-hidden="true"></div>
+            <header class="map-emergency-header">
+              <div>
+                <h2 class="map-emergency-title" id="map-emergency-title">Emergency</h2>
+                <p class="map-emergency-note">Ormoc City hotlines · National, rescue, police &amp; hospitals · Drag up to expand</p>
+              </div>
+              <button type="button" class="map-emergency-close" data-emergency-close aria-label="Close">Close</button>
+            </header>
+          </div>
           <div class="map-emergency-list" id="map-emergency-list">
-            ${renderEmergencyListHtml(EMERGENCY_SEED, 'hospital')}
+            ${renderEmergencyListHtml(EMERGENCY_SEED, 'national')}
           </div>
         </div>
       </div>
@@ -507,64 +651,94 @@ function renderRoutesPanel() {
       <div class="routes-screen">
         <div class="routes-map-stage">
           <div id="routes-map" class="routes-map" role="application" aria-label="Route map"></div>
-          <div class="routes-idle" id="routes-idle">
-            <p class="routes-idle-title">Where to?</p>
-            <p class="routes-idle-copy">Pick a destination to compare travel times.</p>
-          </div>
+          <img
+            class="routes-guide-chibi"
+            id="routes-guide-chibi"
+            src="public/assets/icons/welcome-guide-chibi.png"
+            alt=""
+            width="64"
+            height="64"
+            decoding="async"
+            hidden
+          />
         </div>
 
         <div class="routes-sheet" id="routes-sheet">
           <div class="routes-suggest" id="routes-suggest" hidden role="listbox" aria-label="Place suggestions"></div>
-          <div class="routes-sheet-handle" aria-hidden="true"></div>
-
-          <div class="routes-eta" id="routes-result" hidden>
-            <strong id="routes-result-time"></strong>
-            <div class="routes-eta-copy">
-              <span id="routes-summary"></span>
-              <span id="routes-result-dest"></span>
-            </div>
-            <button type="button" class="routes-save-btn" id="routes-save-btn" aria-label="Save route" title="Save route">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 4.5 2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 16.8 7.2 19.4l.9-5.4-3.9-3.8 5.4-.8L12 4.5Z"/></svg>
-            </button>
+          <div class="routes-sheet-drag" data-routes-drag>
+            <div class="routes-sheet-handle" aria-hidden="true"></div>
           </div>
+          <div class="routes-sheet-body">
+            <div class="routes-idle" id="routes-idle">
+              <img
+                class="routes-idle-chibi"
+                src="public/assets/icons/welcome-guide-chibi.png"
+                alt=""
+                width="72"
+                height="72"
+                decoding="async"
+              />
+              <div class="routes-idle-copy-wrap">
+                <p class="routes-idle-title">Where to?</p>
+                <p class="routes-idle-copy">Pick a destination to compare travel times.</p>
+              </div>
+            </div>
 
-          <form class="routes-form" id="routes-form" autocomplete="off">
-            <div class="routes-inputs">
-              <div class="routes-rail" aria-hidden="true">
-                <span class="routes-rail-dot routes-rail-dot--from"></span>
-                <span class="routes-rail-line"></span>
-                <span class="routes-rail-dot routes-rail-dot--to"></span>
+            <div class="routes-eta is-empty" id="routes-result">
+              <strong id="routes-result-time">—</strong>
+              <div class="routes-eta-copy">
+                <span id="routes-summary">Choose a destination to see travel time</span>
+                <span id="routes-result-dest"></span>
               </div>
-              <div class="routes-fields">
-                <div class="routes-field-wrap">
-                  <label class="routes-field">
-                    <span class="visually-hidden">Starting point</span>
-                    <input type="search" name="from" id="route-from" placeholder="Your location" enterkeyhint="next">
-                  </label>
-                  <button type="button" class="routes-field-action" id="route-use-location" title="Use my location" aria-label="Use my location">
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
-                  </button>
-                </div>
-                <div class="routes-field-wrap">
-                  <label class="routes-field">
-                    <span class="visually-hidden">Destination</span>
-                    <input type="search" name="to" id="route-to" placeholder="Choose destination" enterkeyhint="search" required>
-                  </label>
-                  <button class="routes-submit-icon" type="submit" title="Get directions" aria-label="Get directions">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-                  </button>
-                </div>
-              </div>
-              <button type="button" class="routes-swap" id="route-swap" title="Swap places" aria-label="Swap places">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg>
+              <button type="button" class="routes-save-btn" id="routes-save-btn" aria-label="Save route" title="Save route" hidden>
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 4.5 2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 16.8 7.2 19.4l.9-5.4-3.9-3.8 5.4-.8L12 4.5Z"/></svg>
               </button>
             </div>
 
-            <p class="routes-error" id="routes-error" hidden></p>
-          </form>
+            <form class="routes-form" id="routes-form" autocomplete="off">
+              <div class="routes-inputs">
+                <div class="routes-rail" aria-hidden="true">
+                  <span class="routes-rail-dot routes-rail-dot--from"></span>
+                  <span class="routes-rail-line"></span>
+                  <span class="routes-rail-dot routes-rail-dot--to"></span>
+                </div>
+                <div class="routes-fields">
+                  <div class="routes-field-wrap">
+                    <label class="routes-field">
+                      <span class="visually-hidden">Starting point</span>
+                      <input type="search" name="from" id="route-from" placeholder="Your location" enterkeyhint="next">
+                    </label>
+                    <button type="button" class="routes-field-clear" data-route-clear="from" hidden aria-label="Clear starting point" title="Clear">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                    </button>
+                    <button type="button" class="routes-field-action" id="route-use-location" title="Use my location" aria-label="Use my location">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+                    </button>
+                  </div>
+                  <div class="routes-field-wrap">
+                    <label class="routes-field">
+                      <span class="visually-hidden">Destination</span>
+                      <input type="search" name="to" id="route-to" placeholder="Choose destination" enterkeyhint="search" required>
+                    </label>
+                    <button type="button" class="routes-field-clear" data-route-clear="to" hidden aria-label="Clear destination" title="Clear">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                    </button>
+                    <button class="routes-submit-icon" type="submit" title="Get directions" aria-label="Get directions">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                    </button>
+                  </div>
+                </div>
+                <button type="button" class="routes-swap" id="route-swap" title="Swap places" aria-label="Swap places">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg>
+                </button>
+              </div>
 
-          <div class="routes-modes" id="routes-modes" hidden>
-            <div class="routes-modes-scroller" id="routes-modes-grid" role="list"></div>
+              <p class="routes-error" id="routes-error" hidden></p>
+            </form>
+
+            <div class="routes-modes" id="routes-modes" hidden>
+              <div class="routes-modes-scroller" id="routes-modes-grid" role="list"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -937,18 +1111,16 @@ function renderResumeSummary(resume) {
 
 function renderMorePanel(user) {
   const profile = getUserProfile(user);
-  const rawName = profile.fullName || displayName(user);
+  const accountName = displayName(user);
+  const rawName = accountName || profile.fullName || 'there';
   const name = escapeHtml(rawName);
   const email = escapeHtml(user?.email || '');
   const appName = escapeHtml(getAppName());
   const version = escapeHtml(getEnv().APP_VERSION || '0.1.0');
   const photo = profilePhotoUrl(user);
-  const aboutPreview = profile.about
-    ? `<p class="more-profile-about">${escapeHtml(profile.about)}</p>`
-    : `<p class="more-profile-empty">Tell employers a bit about yourself.</p>`;
   const avatar = photo
-    ? `<img class="more-avatar-img" src="${escapeHtml(photo)}" alt="" width="64" height="64" referrerpolicy="no-referrer" decoding="async">`
-    : `<span class="more-avatar-initials">${escapeHtml(initials(rawName))}</span>`;
+    ? `<img class="more-avatar-img" src="${escapeHtml(photo)}" alt="" width="64" height="64" referrerpolicy="no-referrer" decoding="async" data-more-avatar-img>`
+    : `<span class="more-avatar-initials" data-more-avatar-initials>${escapeHtml(initials(rawName))}</span>`;
   const skillInputs = profile.skills.map((skill) => `
     <li class="profile-skill-item">
       <span>${escapeHtml(skill)}</span>
@@ -961,102 +1133,81 @@ function renderMorePanel(user) {
       <div class="more-screen" data-more-view="${escapeHtml(readStoredTab() === 'more' ? readStoredMoreView() : 'home')}">
         <div class="more-home" data-more-pane="home"${readStoredTab() === 'more' && readStoredMoreView() === 'profile' ? ' hidden' : ''}>
           <header class="more-hero">
-            <p class="more-kicker">${appName}</p>
-            <div class="more-profile">
-              <div class="more-avatar${photo ? ' more-avatar--photo' : ''}" aria-hidden="true">${avatar}</div>
-              <div class="more-profile-copy">
+            <div class="more-account">
+              <div class="more-avatar${photo ? ' more-avatar--photo' : ''}" data-more-avatar aria-hidden="true">${avatar}</div>
+              <div class="more-account-copy">
                 <h1 class="more-title" data-more-display-name>${name}</h1>
-                <p class="more-email">${email || `Signed in to ${appName}`}</p>
+                <p class="more-email" data-more-email>${email || `Signed in to ${appName}`}</p>
               </div>
-            </div>
-            <div class="more-profile-summary" data-more-profile-summary>
-              ${aboutPreview}
-              <div data-more-skills-preview>${renderProfileSkills(profile.skills)}</div>
             </div>
           </header>
 
           <div class="more-body">
-            <section class="more-group" aria-label="Profile">
-              <h2 class="more-group-title">Profile</h2>
-              <div class="more-list">
-                <button type="button" class="more-row" data-more-open-profile>
-                  <span class="more-row-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z"/><path d="M4 20a8 8 0 0 1 16 0"/><path d="M16.5 5.5 18 7l3-3"/></svg>
-                  </span>
-                  <span class="more-row-copy">
-                    <strong>Edit profile</strong>
-                    <span>About you, skills, and resume</span>
-                  </span>
-                  <span class="more-row-chevron" aria-hidden="true">›</span>
-                </button>
-              </div>
-            </section>
+            <nav class="more-nav" aria-label="Account menu">
+              <button type="button" class="more-row" data-more-open-profile>
+                <span class="more-row-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z"/><path d="M4 20a8 8 0 0 1 16 0"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                </span>
+                <span class="more-row-copy">
+                  <strong>Edit profile</strong>
+                  <span>About you, skills, and resume</span>
+                </span>
+                <span class="more-row-chevron" aria-hidden="true">›</span>
+              </button>
+              <button type="button" class="more-row" data-more-sheet="inside">
+                <span class="more-row-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+                </span>
+                <span class="more-row-copy">
+                  <strong>What's inside</strong>
+                  <span>How OrmocGo helps locals and visitors</span>
+                </span>
+                <span class="more-row-chevron" aria-hidden="true">›</span>
+              </button>
+              <button type="button" class="more-row" data-more-sheet="support">
+                <span class="more-row-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v10H7l-3 3V6Z"/></svg>
+                </span>
+                <span class="more-row-copy">
+                  <strong>Support</strong>
+                  <span>Help, feedback, and contact</span>
+                </span>
+                <span class="more-row-chevron" aria-hidden="true">›</span>
+              </button>
+              <button type="button" class="more-row" data-more-sheet="terms">
+                <span class="more-row-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h8l4 4v14H7V3Z"/><path d="M15 3v4h4M9 12h6M9 16h6"/></svg>
+                </span>
+                <span class="more-row-copy">
+                  <strong>Terms &amp; Conditions</strong>
+                  <span>Community project guidelines</span>
+                </span>
+                <span class="more-row-chevron" aria-hidden="true">›</span>
+              </button>
+            </nav>
 
-            <section class="more-group" aria-label="About">
-              <h2 class="more-group-title">About</h2>
-              <div class="more-list">
-                <button type="button" class="more-row" data-more-sheet="inside">
-                  <span class="more-row-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
-                  </span>
-                  <span class="more-row-copy">
-                    <strong>What's inside</strong>
-                    <span>How OrmocGo helps locals and visitors</span>
-                  </span>
-                  <span class="more-row-chevron" aria-hidden="true">›</span>
-                </button>
-                <button type="button" class="more-row" data-more-sheet="support">
-                  <span class="more-row-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v10H7l-3 3V6Z"/></svg>
-                  </span>
-                  <span class="more-row-copy">
-                    <strong>Support</strong>
-                    <span>Help, feedback, and contact</span>
-                  </span>
-                  <span class="more-row-chevron" aria-hidden="true">›</span>
-                </button>
-                <button type="button" class="more-row" data-more-sheet="terms">
-                  <span class="more-row-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h8l4 4v14H7V3Z"/><path d="M15 3v4h4M9 12h6M9 16h6"/></svg>
-                  </span>
-                  <span class="more-row-copy">
-                    <strong>Terms &amp; Condition</strong>
-                    <span>Community project guidelines</span>
-                  </span>
-                  <span class="more-row-chevron" aria-hidden="true">›</span>
-                </button>
-              </div>
-            </section>
+            <div class="more-version" aria-label="App version">
+              <span>Version</span>
+              <span data-more-version>${version}</span>
+            </div>
 
-            <section class="more-group" aria-label="App">
-              <h2 class="more-group-title">App</h2>
-              <div class="more-list">
-                <div class="more-row more-row--static">
-                  <span class="more-row-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="18" rx="2"/><path d="M10 17h4"/></svg>
-                  </span>
-                  <span class="more-row-copy">
-                    <strong>Version</strong>
-                    <span>${appName} mobile guide</span>
-                  </span>
-                  <span class="more-row-meta">${version}</span>
-                </div>
-              </div>
-            </section>
-
-            <button type="button" class="more-signout" id="dashboard-signout">Sign out</button>
-            <p class="more-footnote">Non-profit · Ad-free · Made for Ormoc</p>
+            <div class="more-footer">
+              <button type="button" class="more-signout" id="dashboard-signout">Sign out</button>
+              <p class="more-footnote">Non-profit · Ad-free · Made for Ormoc</p>
+            </div>
           </div>
         </div>
 
         <div class="more-profile-edit" data-more-pane="profile"${readStoredTab() === 'more' && readStoredMoreView() === 'profile' ? '' : ' hidden'}>
           <header class="profile-edit-top">
+            <div class="profile-edit-heading">
+              <h2 class="profile-edit-title">Edit profile</h2>
+              <p class="profile-edit-copy">Share your about, skills, and resume for local jobs.</p>
+            </div>
             <button type="button" class="profile-back" data-more-close-profile aria-label="Back">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6 9 12l6 6"/></svg>
               Back
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
             </button>
-            <h2 class="profile-edit-title">Edit profile</h2>
-            <p class="profile-edit-copy">Share your about, skills, and resume for local jobs.</p>
           </header>
 
           <form class="profile-form" id="profile-edit-form" novalidate>
@@ -1181,15 +1332,16 @@ function renderSavedPanel() {
             </div>
           </header>
           <div class="saved-filters" role="toolbar" aria-label="Saved filters">
-            <button type="button" class="saved-filter is-active" data-saved-filter="places" aria-pressed="true">Places</button>
+            <button type="button" class="saved-filter is-active" data-saved-filter="all" aria-pressed="true">All</button>
+            <button type="button" class="saved-filter" data-saved-filter="places" aria-pressed="false">Places</button>
             <button type="button" class="saved-filter" data-saved-filter="routes" aria-pressed="false">Routes</button>
             <button type="button" class="saved-filter" data-saved-filter="community" aria-pressed="false">Community</button>
           </div>
         </div>
         <div class="saved-feed" id="saved-feed">
           <div class="saved-section" data-saved-section="places"></div>
-          <div class="saved-section" data-saved-section="routes" hidden></div>
-          <div class="saved-section" data-saved-section="community" hidden></div>
+          <div class="saved-section" data-saved-section="routes"></div>
+          <div class="saved-section" data-saved-section="community"></div>
         </div>
       </div>
     </section>
@@ -1293,7 +1445,7 @@ function renderTouristRail() {
         <div class="tourist-rail-head">
           <div class="tourist-rail-copy">
             <p class="tourist-rail-title">Tourist spots</p>
-            <p class="tourist-rail-sub">Top-rated places in Ormoc</p>
+            <p class="tourist-rail-sub">11 local favorites around Ormoc</p>
           </div>
           <button type="button" class="tourist-rail-close" id="tourist-rail-close" aria-label="Close tourist spots">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -1343,6 +1495,16 @@ export function renderDashboard(user) {
   return `
     <section class="dash-shell" aria-label="OrmocGo app" data-active-tab="${escapeHtml(startTab)}">
       <div class="app-toast" id="app-toast" role="status" aria-live="polite" hidden></div>
+      <div class="app-confirm-toast" id="signout-confirm" role="alertdialog" aria-modal="true" aria-labelledby="signout-confirm-title" hidden>
+        <div class="app-confirm-toast-card">
+          <p class="app-confirm-toast-title" id="signout-confirm-title">Sign out?</p>
+          <p class="app-confirm-toast-copy">You’ll need to sign in again to use your saved profile and places.</p>
+          <div class="app-confirm-toast-actions">
+            <button type="button" class="app-confirm-toast-cancel" data-signout-cancel>Cancel</button>
+            <button type="button" class="app-confirm-toast-ok" data-signout-confirm>Sign out</button>
+          </div>
+        </div>
+      </div>
       <div class="dash-body">
         ${withPanelState(mapHtml, 'map')}
         ${withPanelState(routesHtml, 'routes')}
@@ -1388,7 +1550,6 @@ export function mountDashboard(root = document) {
 
   const panels = Array.from(shell.querySelectorAll('[data-panel]'));
   const tabs = Array.from(shell.querySelectorAll('[data-tab]'));
-  const status = shell.querySelector('#map-status');
   const searchForm = shell.querySelector('#map-search-form');
   const searchInput = shell.querySelector('#map-search-input');
   const chips = Array.from(shell.querySelectorAll('[data-map-category]'));
@@ -1411,17 +1572,22 @@ export function mountDashboard(root = document) {
   const emergencyModal = shell.querySelector('#map-emergency-modal');
   const emergencyList = shell.querySelector('#map-emergency-list');
   let emergencyContactsCache = EMERGENCY_SEED;
-  let emergencyActiveTab = 'hospital';
+  let emergencyActiveTab = 'national';
+  let emergencyUserPos = null;
+
+  function paintEmergencyList() {
+    if (!emergencyList) return;
+    emergencyList.innerHTML = renderEmergencyListHtml(emergencyContactsCache, emergencyActiveTab);
+    bindEmergencyListControls();
+  }
 
   function bindEmergencyListControls() {
     emergencyList?.querySelectorAll('[data-emergency-tab]').forEach((btn) => {
       btn.addEventListener('click', (event) => {
         event.stopPropagation();
-        emergencyActiveTab = btn.getAttribute('data-emergency-tab') === 'police' ? 'police' : 'hospital';
-        if (emergencyList) {
-          emergencyList.innerHTML = renderEmergencyListHtml(emergencyContactsCache, emergencyActiveTab);
-        }
-        bindEmergencyListControls();
+        const nextTab = btn.getAttribute('data-emergency-tab');
+        emergencyActiveTab = EMERGENCY_GROUPS.includes(nextTab) ? nextTab : 'national';
+        paintEmergencyList();
       });
     });
 
@@ -1429,21 +1595,163 @@ export function mountDashboard(root = document) {
       btn.addEventListener('click', (event) => {
         event.stopPropagation();
         const category = btn.getAttribute('data-emergency-category');
+        if (!category) return;
         setEmergencyOpen(false);
         if (searchInput) searchInput.value = '';
         runCategory(category);
         setStatus(category === 'police' ? 'Showing police nearby' : 'Showing hospitals nearby');
       });
     });
+
+    emergencyList?.querySelectorAll('[data-emergency-locate]').forEach((btn) => {
+      btn.addEventListener('click', async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const lat = Number(btn.getAttribute('data-lat'));
+        const lon = Number(btn.getAttribute('data-lon'));
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+        const name = btn.getAttribute('data-name') || 'Emergency location';
+        const phone = btn.getAttribute('data-phone') || '';
+        const note = btn.getAttribute('data-note') || '';
+        const place = {
+          lat,
+          lon,
+          name,
+          display_name: [note, 'Ormoc City, Leyte'].filter(Boolean).join(' · '),
+          phone,
+          phones: phone ? [phone] : [],
+        };
+
+        setEmergencyOpen(false);
+        if (searchInput) searchInput.value = '';
+        chips.forEach((chip) => {
+          const active = false;
+          chip.classList.toggle('is-active', active);
+          chip.setAttribute('aria-pressed', 'false');
+        });
+
+        try {
+          if (!mapApi && mapEl) {
+            mapApi = await createOrmocMap(mapEl, { locate: true });
+            if (mapApi) mapApi.setMapType(activeMapType);
+          }
+          if (!mapApi) {
+            setStatus('Map is still loading', { type: 'error' });
+            return;
+          }
+          mapApi.setStatusMarkers([place]);
+          mapApi.focusPlace(place, { zoom: 16 });
+          setStatus(`${name} · on map`);
+        } catch (err) {
+          setStatus(err.message || 'Could not open map location', { type: 'error' });
+        }
+      });
+    });
   }
 
-  async function refreshEmergencyList() {
-    emergencyContactsCache = await ensureEmergencyContactsCached();
-    if (emergencyList) {
-      emergencyList.innerHTML = renderEmergencyListHtml(emergencyContactsCache, emergencyActiveTab);
+  async function refreshEmergencyList({ locate = true } = {}) {
+    const base = await ensureEmergencyContactsCached();
+    if (locate) {
+      emergencyUserPos = await getCurrentPosition();
     }
-    bindEmergencyListControls();
+    emergencyContactsCache = emergencyUserPos
+      ? withDistance(base, emergencyUserPos)
+      : base;
+
+    const nearest = getNearestPlaces(emergencyContactsCache, {
+      groups: ['hospital', 'police', 'rescue'],
+      limit: 1,
+    })[0];
+    if (nearest?.group && EMERGENCY_GROUPS.includes(nearest.group)) {
+      emergencyActiveTab = nearest.group;
+    }
+
+    paintEmergencyList();
     return emergencyContactsCache;
+  }
+
+  const emergencyPanel = shell.querySelector('#map-emergency-panel');
+  const emergencyDrag = shell.querySelector('[data-emergency-drag]');
+
+  function emergencySheetHeights() {
+    const viewH = window.innerHeight || 700;
+    return {
+      mid: Math.min(Math.round(viewH * 0.58), 380),
+      max: Math.min(Math.round(viewH * 0.92), viewH - 16),
+      close: Math.min(Math.round(viewH * 0.34), 220),
+    };
+  }
+
+  function setEmergencySheetHeight(px, { expanded = false } = {}) {
+    if (!emergencyPanel) return;
+    const height = Math.max(160, Math.round(px));
+    emergencyPanel.style.setProperty('--emergency-h', `${height}px`);
+    emergencyPanel.classList.toggle('is-expanded', expanded);
+  }
+
+  function resetEmergencySheetHeight() {
+    if (!emergencyPanel) return;
+    emergencyPanel.classList.remove('is-dragging', 'is-expanded');
+    emergencyPanel.style.removeProperty('--emergency-h');
+  }
+
+  function bindEmergencySheetDrag() {
+    if (!emergencyPanel || !emergencyDrag || emergencyDrag.dataset.dragBound === '1') return;
+    emergencyDrag.dataset.dragBound = '1';
+
+    let dragging = false;
+    let startY = 0;
+    let startH = 0;
+    let pointerId = null;
+
+    const onMove = (event) => {
+      if (!dragging || event.pointerId !== pointerId) return;
+      const { max } = emergencySheetHeights();
+      const nextH = Math.min(max, Math.max(140, startH + (startY - event.clientY)));
+      setEmergencySheetHeight(nextH, { expanded: nextH > emergencySheetHeights().mid + 40 });
+    };
+
+    const onUp = (event) => {
+      if (!dragging || event.pointerId !== pointerId) return;
+      dragging = false;
+      emergencyPanel.classList.remove('is-dragging');
+      try {
+        emergencyDrag.releasePointerCapture(pointerId);
+      } catch (_) {
+        /* ignore */
+      }
+      pointerId = null;
+
+      const currentH = emergencyPanel.getBoundingClientRect().height;
+      const { mid, max, close } = emergencySheetHeights();
+      if (currentH <= close) {
+        resetEmergencySheetHeight();
+        setEmergencyOpen(false);
+        return;
+      }
+      if (currentH >= (mid + max) / 2) {
+        setEmergencySheetHeight(max, { expanded: true });
+        return;
+      }
+      setEmergencySheetHeight(mid, { expanded: false });
+    };
+
+    emergencyDrag.addEventListener('pointerdown', (event) => {
+      if (event.button != null && event.button !== 0) return;
+      if (event.target.closest('[data-emergency-close]')) return;
+      dragging = true;
+      pointerId = event.pointerId;
+      startY = event.clientY;
+      startH = emergencyPanel.getBoundingClientRect().height;
+      emergencyPanel.classList.add('is-dragging');
+      emergencyDrag.setPointerCapture(pointerId);
+      event.preventDefault();
+    });
+
+    emergencyDrag.addEventListener('pointermove', onMove);
+    emergencyDrag.addEventListener('pointerup', onUp);
+    emergencyDrag.addEventListener('pointercancel', onUp);
   }
 
   function setEmergencyOpen(open) {
@@ -1452,12 +1760,19 @@ export function mountDashboard(root = document) {
     emergencyModal.hidden = !next;
     emergencyBtn.setAttribute('aria-expanded', next ? 'true' : 'false');
     emergencyBtn.classList.toggle('is-active', next);
+    if (!next) resetEmergencySheetHeight();
+    else {
+      const { mid } = emergencySheetHeights();
+      setEmergencySheetHeight(mid, { expanded: false });
+    }
     requestAnimationFrame(() => {
       emergencyModal.classList.toggle('is-open', next);
     });
     document.body.classList.toggle('emergency-sheet-open', next);
-    if (next) void refreshEmergencyList();
+    if (next) void refreshEmergencyList({ locate: true });
   }
+
+  bindEmergencySheetDrag();
 
   function setLayersOpen(open) {
     if (!layersSheet || !layersBtn) return;
@@ -1469,7 +1784,6 @@ export function mountDashboard(root = document) {
 
   const toastEl = shell.querySelector('#app-toast');
   let toastTimer = null;
-  let statusTimer = null;
 
   function showToast(message, { type = 'info', duration = 2600 } = {}) {
     if (!toastEl) return;
@@ -1504,30 +1818,10 @@ export function mountDashboard(root = document) {
 
   function setStatus(text, { sticky = false, type = 'info' } = {}) {
     const message = String(text || '').trim();
-    if (!message) {
-      showToast('');
-      if (status) {
-        status.textContent = '';
-        status.classList.remove('is-visible');
-      }
-      return;
-    }
-
     showToast(message, {
       type,
-      duration: sticky ? 4200 : 2600,
+      duration: message ? (sticky ? 4200 : 2600) : 0,
     });
-
-    // Keep legacy map status in sync for map-context hints.
-    if (!status) return;
-    status.textContent = message;
-    status.classList.toggle('is-visible', true);
-    clearTimeout(statusTimer);
-    if (!sticky) {
-      statusTimer = setTimeout(() => {
-        status.classList.remove('is-visible');
-      }, 2600);
-    }
   }
 
   function setTab(tabId, { persist = true } = {}) {
@@ -1560,6 +1854,7 @@ export function mountDashboard(root = document) {
           startRouteTracking(routePlan.selectedId);
         }
       });
+      void ensureRouteFromLocation({ focusTo: true });
     } else {
       stopRouteTracking();
     }
@@ -1567,6 +1862,7 @@ export function mountDashboard(root = document) {
       refreshSavedLists?.();
     }
     if (next === 'more') {
+      void syncGoogleAccountProfile();
       const moreView = readStoredMoreView();
       setMoreView?.(moreView, { persist: false });
       // Only hydrate once when opening Edit profile — never overwrite in-progress typing.
@@ -1759,8 +2055,10 @@ export function mountDashboard(root = document) {
     }
 
     await Promise.all(TOURIST_SPOTS.map(async (spot) => {
-      // Keep local album slideshows — don't replace with a single Google photo.
-      if (spotImageList(spot).length > 1) return;
+      // Keep curated Chill & Travel / multi-image albums — don't replace with Google photos.
+      const album = spotImageList(spot);
+      if (album.length > 1) return;
+      if (album.some((src) => String(src).includes('/tourist-spots/'))) return;
       const img = touristRail.querySelector(`[data-tourist-photo="${spot.id}"]`);
       if (!img) return;
       try {
@@ -1862,6 +2160,7 @@ export function mountDashboard(root = document) {
   const routesModes = shell.querySelector('#routes-modes');
   const routesModesGrid = shell.querySelector('#routes-modes-grid');
   const routesIdle = shell.querySelector('#routes-idle');
+  const routesGuideChibi = shell.querySelector('#routes-guide-chibi');
   const routesResult = shell.querySelector('#routes-result');
   const routesResultTime = shell.querySelector('#routes-result-time');
   const routesResultDest = shell.querySelector('#routes-result-dest');
@@ -1870,7 +2169,197 @@ export function mountDashboard(root = document) {
   const routeLocateBtn = shell.querySelector('#route-use-location');
   const routeSwapBtn = shell.querySelector('#route-swap');
   const routesSaveBtn = shell.querySelector('#routes-save-btn');
+  const routesSheet = shell.querySelector('#routes-sheet');
+  const routesSheetDrag = shell.querySelector('[data-routes-drag]');
+  const routeFromClear = shell.querySelector('[data-route-clear="from"]');
+  const routeToClear = shell.querySelector('[data-route-clear="to"]');
   let routePlan = null;
+  let routeFromPrefillPromise = null;
+
+  function clearRouteInput(input) {
+    if (!input) return;
+    input.value = '';
+    delete input.dataset.lat;
+    delete input.dataset.lon;
+    delete input.dataset.label;
+  }
+
+  function syncRouteFieldChrome() {
+    const fromHas = Boolean(routesForm?.from?.value.trim());
+    const toHas = Boolean(routesForm?.to?.value.trim());
+    if (routeFromClear) routeFromClear.hidden = !fromHas;
+    if (routeToClear) routeToClear.hidden = !toHas;
+    if (routeLocateBtn) routeLocateBtn.hidden = fromHas;
+  }
+
+  function focusRouteDestination() {
+    const to = routesForm?.to;
+    if (!to) return;
+    requestAnimationFrame(() => {
+      to.focus({ preventScroll: true });
+      const len = to.value.length;
+      try {
+        to.setSelectionRange(len, len);
+      } catch (_) {
+        /* some browsers block setSelectionRange on type=search */
+      }
+    });
+  }
+
+  async function ensureRouteFromLocation({ focusTo = false } = {}) {
+    if (!routesForm?.from) return null;
+    const from = routesForm.from;
+    const value = from.value.trim();
+    const hasCoords = Boolean(from.dataset.lat && from.dataset.lon);
+    const isGenericHere = !value || /^(your|current|my) location$/i.test(value);
+
+    if (hasCoords && value && !isGenericHere) {
+      syncRouteFieldChrome();
+      if (focusTo) focusRouteDestination();
+      return {
+        lat: Number(from.dataset.lat),
+        lon: Number(from.dataset.lon),
+        label: from.dataset.label || value,
+      };
+    }
+
+    if (hasCoords && isGenericHere) {
+      syncRouteFieldChrome();
+      if (focusTo) focusRouteDestination();
+      return {
+        lat: Number(from.dataset.lat),
+        lon: Number(from.dataset.lon),
+        label: 'Your location',
+      };
+    }
+
+    if (routeFromPrefillPromise) {
+      const place = await routeFromPrefillPromise;
+      if (focusTo) focusRouteDestination();
+      return place;
+    }
+
+    routeFromPrefillPromise = (async () => {
+      try {
+        const here = await getCurrentPosition();
+        const nextValue = from.value.trim();
+        const nextHasCoords = Boolean(from.dataset.lat && from.dataset.lon);
+        // Another path (saved route, suggestion, locate) may have filled From while GPS resolved.
+        if (nextHasCoords && nextValue) {
+          syncRouteFieldChrome();
+          return {
+            lat: Number(from.dataset.lat),
+            lon: Number(from.dataset.lon),
+            label: from.dataset.label || nextValue,
+          };
+        }
+        if (nextValue && !/^(your|current|my) location$/i.test(nextValue)) {
+          syncRouteFieldChrome();
+          return null;
+        }
+        from.value = 'Your location';
+        from.dataset.lat = String(here.lat);
+        from.dataset.lon = String(here.lon);
+        from.dataset.label = 'Your location';
+        syncRouteFieldChrome();
+        const api = await ensureRoutesMap();
+        api?.setUserLocation({ lat: here.lat, lng: here.lon });
+        return {
+          lat: here.lat,
+          lon: here.lon,
+          label: 'Your location',
+        };
+      } catch (_) {
+        syncRouteFieldChrome();
+        return null;
+      } finally {
+        routeFromPrefillPromise = null;
+      }
+    })();
+
+    const place = await routeFromPrefillPromise;
+    if (focusTo) focusRouteDestination();
+    return place;
+  }
+
+  function routesSheetHeights() {
+    const viewH = window.innerHeight || 700;
+    const natural = routesSheet?.scrollHeight || 180;
+    return {
+      mid: Math.min(Math.max(natural, 160), Math.round(viewH * 0.42)),
+      max: Math.min(Math.round(viewH * 0.78), 560),
+      min: 150,
+    };
+  }
+
+  function setRoutesSheetHeight(px, { expanded = false } = {}) {
+    if (!routesSheet) return;
+    routesSheet.style.setProperty('--routes-sheet-h', `${Math.max(140, Math.round(px))}px`);
+    routesSheet.classList.toggle('is-expanded', expanded);
+    routesMapApi?.invalidate?.();
+  }
+
+  function resetRoutesSheetHeight() {
+    if (!routesSheet) return;
+    routesSheet.classList.remove('is-dragging', 'is-expanded');
+    routesSheet.style.removeProperty('--routes-sheet-h');
+    routesMapApi?.invalidate?.();
+  }
+
+  function bindRoutesSheetDrag() {
+    if (!routesSheet || !routesSheetDrag || routesSheetDrag.dataset.dragBound === '1') return;
+    routesSheetDrag.dataset.dragBound = '1';
+
+    let dragging = false;
+    let startY = 0;
+    let startH = 0;
+    let pointerId = null;
+
+    const onMove = (event) => {
+      if (!dragging || event.pointerId !== pointerId) return;
+      const { max, min } = routesSheetHeights();
+      const nextH = Math.min(max, Math.max(min, startH + (startY - event.clientY)));
+      setRoutesSheetHeight(nextH, { expanded: nextH > routesSheetHeights().mid + 36 });
+    };
+
+    const onUp = (event) => {
+      if (!dragging || event.pointerId !== pointerId) return;
+      dragging = false;
+      routesSheet.classList.remove('is-dragging');
+      try {
+        routesSheetDrag.releasePointerCapture(pointerId);
+      } catch (_) {
+        /* ignore */
+      }
+      pointerId = null;
+
+      const currentH = routesSheet.getBoundingClientRect().height;
+      const { mid, max } = routesSheetHeights();
+      if (currentH >= (mid + max) / 2) {
+        setRoutesSheetHeight(max, { expanded: true });
+        return;
+      }
+      resetRoutesSheetHeight();
+    };
+
+    routesSheetDrag.addEventListener('pointerdown', (event) => {
+      if (event.button != null && event.button !== 0) return;
+      dragging = true;
+      pointerId = event.pointerId;
+      startY = event.clientY;
+      startH = routesSheet.getBoundingClientRect().height;
+      routesSheet.classList.add('is-dragging');
+      routesSheet.style.setProperty('--routes-sheet-h', `${Math.round(startH)}px`);
+      routesSheetDrag.setPointerCapture(pointerId);
+      event.preventDefault();
+    });
+
+    routesSheetDrag.addEventListener('pointermove', onMove);
+    routesSheetDrag.addEventListener('pointerup', onUp);
+    routesSheetDrag.addEventListener('pointercancel', onUp);
+  }
+
+  bindRoutesSheetDrag();
 
   function currentRouteSavePayload() {
     if (!routePlan?.modes?.length) return null;
@@ -1968,12 +2457,40 @@ export function mountDashboard(root = document) {
     return routesMapPromise;
   }
 
+  function setRoutesIdleMode(mode = 'prompt') {
+    const next = mode === 'guide' || mode === 'loading' ? mode : 'prompt';
+    if (routesIdle) {
+      routesIdle.hidden = next === 'guide';
+      routesIdle.classList.toggle('is-loading-hint', next === 'loading');
+      const title = routesIdle.querySelector('.routes-idle-title');
+      const copy = routesIdle.querySelector('.routes-idle-copy');
+      if (next === 'loading') {
+        if (title) title.textContent = 'Finding routes…';
+        if (copy) copy.textContent = 'Comparing walk, run, bike, motor, and car.';
+      } else {
+        if (title) title.textContent = 'Where to?';
+        if (copy) copy.textContent = 'Pick a destination to compare travel times.';
+      }
+    }
+    if (routesGuideChibi) routesGuideChibi.hidden = next !== 'guide';
+  }
+
   function setRoutesEmpty(empty) {
-    if (routesIdle) routesIdle.hidden = !empty;
+    setRoutesIdleMode(empty ? 'prompt' : 'guide');
     if (routesModes) routesModes.hidden = empty;
-    if (routesResult) routesResult.hidden = empty;
-    shell.querySelector('#routes-sheet')?.classList.toggle('has-route', !empty);
-    if (empty) stopRouteTracking();
+    if (routesResult) {
+      routesResult.hidden = empty;
+      routesResult.classList.toggle('is-empty', empty);
+    }
+    if (routesSaveBtn) routesSaveBtn.hidden = empty;
+    if (empty) {
+      if (routesResultTime) routesResultTime.textContent = '—';
+      if (routesSummary) routesSummary.textContent = 'Choose a destination to see travel time';
+      if (routesResultDest) routesResultDest.textContent = '';
+      stopRouteTracking();
+      resetRoutesSheetHeight();
+    }
+    routesSheet?.classList.toggle('has-route', !empty);
   }
 
   function hideSuggestions() {
@@ -2017,6 +2534,7 @@ export function mountDashboard(root = document) {
     input.dataset.lat = String(place.lat);
     input.dataset.lon = String(place.lon);
     input.dataset.label = place.name || '';
+    syncRouteFieldChrome();
   }
 
   async function resolveEndpoint(input, { allowGps = false } = {}) {
@@ -2039,6 +2557,7 @@ export function mountDashboard(root = document) {
         input.dataset.lat = String(here.lat);
         input.dataset.lon = String(here.lon);
         input.dataset.label = 'Your location';
+        syncRouteFieldChrome();
       }
       return here;
     }
@@ -2122,12 +2641,7 @@ export function mountDashboard(root = document) {
     if (routesError) routesError.hidden = true;
     hideSuggestions();
     setRoutesEmpty(true);
-    if (routesIdle) {
-      routesIdle.hidden = true;
-      routesIdle.querySelector('.routes-idle-title').textContent = 'Finding routes…';
-      routesIdle.querySelector('.routes-idle-copy').textContent = 'Comparing walk, run, bike, motor, and car.';
-      routesIdle.hidden = false;
-    }
+    setRoutesIdleMode('loading');
     routePlan = null;
 
     const toValue = routesForm.to.value.trim();
@@ -2155,19 +2669,11 @@ export function mountDashboard(root = document) {
         selectedId: fastest?.id || 'car',
       };
 
-      if (routesIdle) {
-        routesIdle.querySelector('.routes-idle-title').textContent = 'Where to?';
-        routesIdle.querySelector('.routes-idle-copy').textContent = 'Pick a destination to compare travel times.';
-      }
       await applySelectedMode(routePlan.selectedId);
       sheet?.classList.add('has-route');
     } catch (err) {
       setRoutesEmpty(true);
       sheet?.classList.remove('has-route');
-      if (routesIdle) {
-        routesIdle.querySelector('.routes-idle-title').textContent = 'Where to?';
-        routesIdle.querySelector('.routes-idle-copy').textContent = 'Pick a destination to compare travel times.';
-      }
       if (routesError) {
         routesError.hidden = false;
         routesError.textContent = err.message || 'Routing failed.';
@@ -2185,6 +2691,7 @@ export function mountDashboard(root = document) {
       delete input.dataset.lat;
       delete input.dataset.lon;
       delete input.dataset.label;
+      syncRouteFieldChrome();
       clearTimeout(suggestTimer);
       const q = input.value.trim();
       if (q.length < 2) {
@@ -2231,6 +2738,31 @@ export function mountDashboard(root = document) {
 
   bindSuggestInput(routesForm?.from);
   bindSuggestInput(routesForm?.to);
+  routesForm?.from?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    hideSuggestions();
+    focusRouteDestination();
+  });
+  syncRouteFieldChrome();
+
+  shell.querySelectorAll('[data-route-clear]').forEach((btn) => {
+    btn.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const which = btn.getAttribute('data-route-clear');
+      const input = which === 'to' ? routesForm?.to : routesForm?.from;
+      clearRouteInput(input);
+      hideSuggestions();
+      syncRouteFieldChrome();
+      if (which === 'to') {
+        setRoutesEmpty(true);
+        input?.focus();
+        return;
+      }
+      input?.focus();
+    });
+  });
 
   if (routesSuggest) {
     routesSuggest.addEventListener('mousedown', (event) => event.preventDefault());
@@ -2244,11 +2776,12 @@ export function mountDashboard(root = document) {
       const place = suggestItems[Number(btn.dataset.suggestIndex)];
       if (!place) return;
       applyPlaceToInput(suggestTarget, place);
+      syncRouteFieldChrome();
       hideSuggestions();
       if (suggestTarget === routesForm?.to && (routesForm.from.value.trim() || routesForm.from.dataset.lat)) {
         await runDirections();
       } else if (suggestTarget === routesForm?.from) {
-        routesForm?.to?.focus();
+        focusRouteDestination();
       }
     });
   }
@@ -2265,8 +2798,10 @@ export function mountDashboard(root = document) {
           routesForm.from.dataset.label = 'Your location';
         }
         hideSuggestions();
+        syncRouteFieldChrome();
         const api = await ensureRoutesMap();
         api?.setUserLocation({ lat: here.lat, lng: here.lon });
+        focusRouteDestination();
       } finally {
         routeLocateBtn.disabled = false;
       }
@@ -2293,6 +2828,7 @@ export function mountDashboard(root = document) {
       to.dataset.lon = swap.lon || '';
       to.dataset.label = swap.label || '';
       hideSuggestions();
+      syncRouteFieldChrome();
     });
   }
 
@@ -2333,24 +2869,65 @@ export function mountDashboard(root = document) {
   const profileResumeStatus = shell.querySelector('#profile-resume-status');
   const profileFormStatus = shell.querySelector('#profile-form-status');
   const moreDisplayName = shell.querySelector('[data-more-display-name]');
-  const moreProfileSummary = shell.querySelector('[data-more-profile-summary]');
-  const moreSkillsPreview = shell.querySelector('[data-more-skills-preview]');
+  const moreEmailEl = shell.querySelector('[data-more-email]');
+  const moreAvatarEl = shell.querySelector('[data-more-avatar]');
   let profileSkills = [];
   let profileUser = null;
   let profileEditorReady = false;
   let profileDraftDirty = false;
   let profileDraftTimer = null;
 
-  async function ensureProfileUser() {
-    if (profileUser) return profileUser;
+  async function ensureProfileUser({ force = false } = {}) {
+    if (profileUser && !force) return profileUser;
     try {
       const supabase = await getSupabase();
+      // getUser() usually has fuller Google metadata than the cached session user.
+      const { data: userData } = await supabase?.auth.getUser() || {};
+      if (userData?.user) {
+        profileUser = userData.user;
+        return profileUser;
+      }
       const { data } = await supabase?.auth.getSession() || {};
       profileUser = data?.session?.user || { id: 'local' };
     } catch (_) {
       profileUser = { id: 'local' };
     }
     return profileUser;
+  }
+
+  function paintMoreAccount(user) {
+    if (!user) return;
+    const accountName = displayName(user);
+    const photo = profilePhotoUrl(user);
+    if (moreDisplayName) moreDisplayName.textContent = accountName;
+    if (moreEmailEl && user.email) moreEmailEl.textContent = user.email;
+    if (!moreAvatarEl) return;
+
+    if (photo) {
+      moreAvatarEl.classList.add('more-avatar--photo');
+      let img = moreAvatarEl.querySelector('[data-more-avatar-img]');
+      if (!img) {
+        moreAvatarEl.innerHTML = '';
+        img = document.createElement('img');
+        img.className = 'more-avatar-img';
+        img.alt = '';
+        img.width = 64;
+        img.height = 64;
+        img.decoding = 'async';
+        img.referrerPolicy = 'no-referrer';
+        img.dataset.moreAvatarImg = '';
+        moreAvatarEl.appendChild(img);
+      }
+      img.src = photo;
+      img.onerror = () => {
+        moreAvatarEl.classList.remove('more-avatar--photo');
+        moreAvatarEl.innerHTML = `<span class="more-avatar-initials" data-more-avatar-initials>${escapeHtml(initials(accountName))}</span>`;
+      };
+      return;
+    }
+
+    moreAvatarEl.classList.remove('more-avatar--photo');
+    moreAvatarEl.innerHTML = `<span class="more-avatar-initials" data-more-avatar-initials>${escapeHtml(initials(accountName))}</span>`;
   }
 
   function setMoreView(view, { persist = true } = {}) {
@@ -2405,19 +2982,27 @@ export function mountDashboard(root = document) {
   }
 
   function refreshMoreProfileSummary(profile, user) {
-    const name = profile.fullName || displayName(user);
-    if (moreDisplayName) moreDisplayName.textContent = name;
-    if (moreProfileSummary) {
-      let aboutEl = moreProfileSummary.querySelector('.more-profile-about, .more-profile-empty');
-      if (!aboutEl) {
-        aboutEl = document.createElement('p');
-        moreProfileSummary.prepend(aboutEl);
-      }
-      aboutEl.className = profile.about ? 'more-profile-about' : 'more-profile-empty';
-      aboutEl.textContent = profile.about || 'Tell employers a bit about yourself.';
-    }
-    if (moreSkillsPreview) moreSkillsPreview.innerHTML = renderProfileSkills(profile.skills);
+    paintMoreAccount(user);
     if (profileResumeBox) profileResumeBox.innerHTML = renderResumeSummary(profile.resume);
+  }
+
+  async function syncGoogleAccountProfile() {
+    const user = await ensureProfileUser({ force: true });
+    paintMoreAccount(user);
+    if (!user?.id || user.id === 'local') return user;
+
+    const profile = getUserProfile(user);
+    const googleName = displayName(user);
+    const emailLocal = user.email ? user.email.split('@')[0] : '';
+    const shouldSeedName = !profile.fullName
+      || profile.fullName.toLowerCase() === String(emailLocal || '').toLowerCase();
+    if (shouldSeedName && googleName && googleName !== 'there') {
+      saveUserProfile(user, { fullName: googleName });
+      if (profileNameInput && (!profileNameInput.value || profileNameInput.value === emailLocal)) {
+        profileNameInput.value = googleName;
+      }
+    }
+    return user;
   }
 
   async function loadProfileEditor({ preserveDraft = false, force = false } = {}) {
@@ -2603,20 +3188,61 @@ export function mountDashboard(root = document) {
     refreshMoreProfileSummary(hydrated, user);
   });
 
+  const signOutConfirm = shell.querySelector('#signout-confirm');
+  const signOutConfirmOk = shell.querySelector('[data-signout-confirm]');
+  const signOutConfirmCancel = shell.querySelector('[data-signout-cancel]');
+
+  function setSignOutConfirmOpen(open) {
+    if (!signOutConfirm) return;
+    const next = Boolean(open);
+    signOutConfirm.hidden = !next;
+    requestAnimationFrame(() => {
+      signOutConfirm.classList.toggle('is-visible', next);
+    });
+    document.body.classList.toggle('signout-confirm-open', next);
+  }
+
   if (signOutBtn) {
-    signOutBtn.addEventListener('click', async () => {
+    signOutBtn.addEventListener('click', () => {
+      setSignOutConfirmOpen(true);
+    });
+  }
+
+  signOutConfirmCancel?.addEventListener('click', () => {
+    setSignOutConfirmOpen(false);
+  });
+
+  signOutConfirm?.addEventListener('click', (event) => {
+    if (event.target === signOutConfirm) setSignOutConfirmOpen(false);
+  });
+
+  signOutConfirmOk?.addEventListener('click', async () => {
+    if (signOutConfirmOk) {
+      signOutConfirmOk.disabled = true;
+      signOutConfirmOk.textContent = 'Signing out…';
+    }
+    if (signOutBtn) {
       signOutBtn.disabled = true;
       signOutBtn.textContent = 'Signing out…';
-      try {
-        const supabase = await getSupabase();
-        if (supabase) await supabase.auth.signOut();
-        goToPage('home');
-      } catch (_) {
+    }
+    try {
+      const supabase = await getSupabase();
+      if (supabase) await supabase.auth.signOut();
+      setSignOutConfirmOpen(false);
+      goToPage('home');
+    } catch (_) {
+      setSignOutConfirmOpen(false);
+      if (signOutConfirmOk) {
+        signOutConfirmOk.disabled = false;
+        signOutConfirmOk.textContent = 'Sign out';
+      }
+      if (signOutBtn) {
         signOutBtn.disabled = false;
         signOutBtn.textContent = 'Sign out';
       }
-    });
-  }
+      showToast('Could not sign out. Try again.', { type: 'error' });
+    }
+  });
 
   const communityFilters = Array.from(shell.querySelectorAll('[data-community-filter]'));
   const communityFeedSection = shell.querySelector('[data-community-section="feed"]');
@@ -2726,49 +3352,80 @@ export function mountDashboard(root = document) {
   const savedPlacesSection = shell.querySelector('[data-saved-section="places"]');
   const savedRoutesSection = shell.querySelector('[data-saved-section="routes"]');
   const savedCommunitySection = shell.querySelector('[data-saved-section="community"]');
+  let savedActiveFilter = 'all';
 
   function setSavedFilter(filterId) {
-    const next = filterId === 'routes' || filterId === 'community' ? filterId : 'places';
+    savedActiveFilter = ['all', 'places', 'routes', 'community'].includes(filterId) ? filterId : 'all';
     savedFilters.forEach((btn) => {
-      const active = btn.getAttribute('data-saved-filter') === next;
+      const active = btn.getAttribute('data-saved-filter') === savedActiveFilter;
       btn.classList.toggle('is-active', active);
       btn.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
-    if (savedPlacesSection) savedPlacesSection.hidden = next !== 'places';
-    if (savedRoutesSection) savedRoutesSection.hidden = next !== 'routes';
-    if (savedCommunitySection) savedCommunitySection.hidden = next !== 'community';
+    const showAll = savedActiveFilter === 'all';
+    if (savedPlacesSection) savedPlacesSection.hidden = !(showAll || savedActiveFilter === 'places');
+    if (savedRoutesSection) savedRoutesSection.hidden = !(showAll || savedActiveFilter === 'routes');
+    if (savedCommunitySection) savedCommunitySection.hidden = !(showAll || savedActiveFilter === 'community');
+    refreshSavedLists();
   }
 
   function refreshSavedLists() {
     const places = listSavedPlaces();
     const routes = listSavedRoutes();
     const community = listSavedCommunity();
+    const showAll = savedActiveFilter === 'all';
+    const nothingSaved = !places.length && !routes.length && !community.length;
 
     if (savedPlacesSection) {
-      savedPlacesSection.innerHTML = places.length
-        ? places.map(renderSavedPlaceItem).join('')
-        : `<div class="saved-empty">
+      if (places.length) {
+        savedPlacesSection.innerHTML = `
+          ${showAll ? '<h2 class="saved-section-title">Places</h2>' : ''}
+          ${places.map(renderSavedPlaceItem).join('')}
+        `;
+      } else if (savedActiveFilter === 'places') {
+        savedPlacesSection.innerHTML = `<div class="saved-empty">
             <strong>No saved places yet</strong>
             <p>On Map, tap the star on a tourist spot to save it here.</p>
           </div>`;
+      } else if (showAll && nothingSaved) {
+        savedPlacesSection.innerHTML = `<div class="saved-empty">
+            <strong>Nothing saved yet</strong>
+            <p>Star places, routes, posts, or jobs and they’ll show up here.</p>
+          </div>`;
+      } else {
+        savedPlacesSection.innerHTML = '';
+      }
     }
 
     if (savedRoutesSection) {
-      savedRoutesSection.innerHTML = routes.length
-        ? routes.map(renderSavedRouteItem).join('')
-        : `<div class="saved-empty">
+      if (routes.length) {
+        savedRoutesSection.innerHTML = `
+          ${showAll ? '<h2 class="saved-section-title">Routes</h2>' : ''}
+          ${routes.map(renderSavedRouteItem).join('')}
+        `;
+      } else if (savedActiveFilter === 'routes') {
+        savedRoutesSection.innerHTML = `<div class="saved-empty">
             <strong>No saved routes yet</strong>
             <p>On Routes, get directions, then tap the star to save.</p>
           </div>`;
+      } else {
+        savedRoutesSection.innerHTML = '';
+      }
     }
 
     if (savedCommunitySection) {
-      savedCommunitySection.innerHTML = community.length
-        ? community.map(renderSavedCommunityItem).join('')
-        : `<div class="saved-empty">
+      if (community.length) {
+        savedCommunitySection.innerHTML = `
+          ${showAll ? '<h2 class="saved-section-title">Community</h2>' : ''}
+          ${community.map(renderSavedCommunityItem).join('')}
+        `;
+      } else if (savedActiveFilter === 'community') {
+        savedCommunitySection.innerHTML = `<div class="saved-empty">
             <strong>No saved community items yet</strong>
             <p>On Community, tap the bookmark on a post or job to save it here.</p>
           </div>`;
+      } else {
+        savedCommunitySection.innerHTML = '';
+      }
     }
 
     syncTouristSaveButtons();
@@ -2835,6 +3492,7 @@ export function mountDashboard(root = document) {
         routesForm.to.dataset.lat = String(route.to?.lat ?? '');
         routesForm.to.dataset.lon = String(route.to?.lon ?? '');
         routesForm.to.dataset.label = route.to?.label || '';
+        syncRouteFieldChrome();
         await runDirections();
         if (route.modeId) await applySelectedMode(route.modeId);
         return;
@@ -2856,14 +3514,6 @@ export function mountDashboard(root = document) {
           target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         });
       }
-    });
-  }
-
-  const mapSavedBtn = shell.querySelector('#map-saved-btn');
-  if (mapSavedBtn) {
-    mapSavedBtn.addEventListener('click', () => {
-      setLayersOpen(false);
-      setTab('saved');
     });
   }
 
@@ -2905,11 +3555,12 @@ export function mountDashboard(root = document) {
   });
 
   refreshSavedLists();
-  setSavedFilter('places');
+  setSavedFilter('all');
 
   const initialTab = readStoredTab();
   setTab(initialTab);
   initMap();
+  void syncGoogleAccountProfile();
 
   // Keep tab + More sub-view in sync if URL changes.
   window.addEventListener('popstate', () => {
