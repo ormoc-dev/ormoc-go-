@@ -33,6 +33,10 @@ body:has(.welcome) {
   background: #ffffff;
 }
 
+body.is-offline .welcome {
+  padding-top: var(--offline-banner-h, 0px);
+}
+
 .welcome-sky {
   position: absolute;
   inset: 0;

@@ -61,6 +61,17 @@
   background: transparent;
 }
 
+body.is-offline .map-overlay {
+  padding-top: calc(0.55rem + var(--offline-banner-h, 0px));
+}
+
+body.is-offline .dash-panel--community,
+body.is-offline .dash-panel--saved,
+body.is-offline .dash-panel--more,
+body.is-offline .dash-panel--routes {
+  padding-top: var(--offline-banner-h, 0px);
+}
+
 .map-overlay .map-search-row,
 .map-overlay .map-search,
 .map-overlay .map-chips,

@@ -159,21 +159,30 @@
 }
 
 .offline-banner {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 1200;
-  padding: 0.55rem 0.9rem;
+  box-sizing: border-box;
+  padding: max(0.4rem, env(safe-area-inset-top, 0px)) 0.85rem 0.4rem;
   background: #12335c;
   color: #f4f8ff;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.01em;
   text-align: center;
-  line-height: 1.35;
+  line-height: 1.3;
+  pointer-events: none;
 }
 
 .offline-banner[hidden] {
   display: none !important;
+}
+
+/* Banner overlays — do not grow document height / push 100dvh shell. */
+body.is-offline {
+  --offline-banner-h: calc(1.85rem + env(safe-area-inset-top, 0px));
 }
 
 body.is-offline .boot-splash {

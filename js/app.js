@@ -31,7 +31,7 @@ function syncOfflineBanner() {
     banner.id = 'offline-banner';
     banner.className = 'offline-banner';
     banner.setAttribute('role', 'status');
-    banner.textContent = 'Offline · Photo Archive, emergency contacts, and saved items still work';
+    banner.textContent = "You're offline · Archive & saved still work";
     document.body.prepend(banner);
   }
   banner.hidden = false;

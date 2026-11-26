@@ -612,15 +612,16 @@ function latLngToTile(lat, lng, zoom) {
 export function getLayerPreviewUrl(layerId, { zoom = 13 } = {}) {
   // Slightly inland sample so thumbs show city streets, not Ormoc Bay water.
   const { tileX, tileY } = latLngToTile(ORMOC_CENTER.lat, ORMOC_CENTER.lng, zoom);
-  // ArcGIS street tiles (OSM CDN often blocks hotlinked browser previews).
-  const streets = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/${zoom}/${tileY}/${tileX}`;
+  // Carto Voyager matches OpenFreeMap Liberty better than Esri World Street Map
+  // (Esri's street tiles are intentionally warm/yellow-beige).
+  const streets = `https://basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${tileX}/${tileY}.png`;
   const imagery = `https://mt1.google.com/vt/lyrs=s&x=${tileX}&y=${tileY}&z=${zoom}`;
   const labels = `https://mt1.google.com/vt/lyrs=h&x=${tileX}&y=${tileY}&z=${zoom}`;
 
   const previews = {
     streets,
-    light: `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/${zoom}/${tileY}/${tileX}`,
-    dark: `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/${zoom}/${tileY}/${tileX}`,
+    light: `https://basemaps.cartocdn.com/light_all/${zoom}/${tileX}/${tileY}.png`,
+    dark: `https://basemaps.cartocdn.com/dark_all/${zoom}/${tileX}/${tileY}.png`,
     satellite: [labels, imagery],
     terrain: `https://a.tile.opentopomap.org/${zoom}/${tileX}/${tileY}.png`,
     google: streets,
