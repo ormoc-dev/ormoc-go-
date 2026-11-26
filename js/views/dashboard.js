@@ -1591,6 +1591,7 @@ export function mountDashboard(root = document) {
   let locateWatchId = null;
   let locateTracking = false;
   let locateBusy = false;
+  let locateSeq = 0;
 
   function paintEmergencyList() {
     if (!emergencyList) return;
@@ -2008,7 +2009,7 @@ export function mountDashboard(root = document) {
     return err?.message || 'Could not get your location';
   }
 
-  function startLocateTracking() {
+  function startLocateTracking(seq) {
     if (!navigator.geolocation) {
       setStatus(locateErrorMessage(), { type: 'error' });
       return;
@@ -2024,11 +2025,13 @@ export function mountDashboard(root = document) {
 
     locateWatchId = navigator.geolocation.watchPosition(
       (pos) => {
-        // Keep the blue dot moving; center was set on first locate click.
+        // Ignore updates after the user turned tracking off / started a new request.
+        if (!locateTracking || seq !== locateSeq) return;
         applyLocatePosition(pos, { zoom: false });
         setStatus('Tracking your location');
       },
       (err) => {
+        if (seq !== locateSeq) return;
         stopLocateTracking({ keepMarker: true });
         setStatus(locateErrorMessage(err), { type: 'error' });
       },
@@ -2049,14 +2052,18 @@ export function mountDashboard(root = document) {
       setStatus('Map is still loading', { type: 'error' });
       return;
     }
-    if (locateBusy) return;
 
-    if (locateTracking) {
+    // Second click always cancels in-flight locate or stops live tracking.
+    if (locateTracking || locateBusy) {
+      locateSeq += 1;
+      locateBusy = false;
+      locateBtn?.classList.remove('is-busy');
       stopLocateTracking({ keepMarker: true });
       setStatus('Location tracking off');
       return;
     }
 
+    const seq = ++locateSeq;
     locateBusy = true;
     locateBtn?.classList.add('is-busy');
     setStatus('Getting your location…', { sticky: true });
@@ -2071,14 +2078,18 @@ export function mountDashboard(root = document) {
           timeout: 15000,
         });
       });
+      if (seq !== locateSeq) return;
       applyLocatePosition(pos, { zoom: true });
-      startLocateTracking();
+      startLocateTracking(seq);
     } catch (err) {
+      if (seq !== locateSeq) return;
       stopLocateTracking({ keepMarker: true });
       setStatus(locateErrorMessage(err), { type: 'error', sticky: true });
     } finally {
-      locateBusy = false;
-      locateBtn?.classList.remove('is-busy');
+      if (seq === locateSeq) {
+        locateBusy = false;
+        locateBtn?.classList.remove('is-busy');
+      }
     }
   }
 
