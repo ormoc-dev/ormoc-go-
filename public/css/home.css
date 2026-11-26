@@ -122,6 +122,22 @@ body:has(.welcome) {
   position: absolute;
   left: 0;
   right: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.ormoc-slider-fade--top {
+  top: 0;
+  height: 32%;
+  background: linear-gradient(
+    180deg,
+    rgba(15, 39, 68, 0.55) 0%,
+    rgba(15, 39, 68, 0.22) 42%,
+    transparent 100%
+  );
+}
+
+.ormoc-slider-fade--bottom {
   bottom: 0;
   height: 38%;
   background: linear-gradient(
@@ -130,22 +146,24 @@ body:has(.welcome) {
     rgba(255, 255, 255, 0.4) 48%,
     #ffffff 100%
   );
-  pointer-events: none;
-  z-index: 1;
 }
 
 .ormoc-slider-brand {
   position: absolute;
   top: auto;
-  left: 1.15rem;
+  left: 0.85rem;
   right: auto;
   bottom: 2.15rem;
   z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  width: auto;
-  max-width: calc(100% - 2.3rem);
+  justify-content: flex-start;
+  width: max-content;
+  max-width: none;
+  margin: 0;
+  margin-right: auto;
+  transform: none;
   pointer-events: none;
 }
 
@@ -210,34 +228,27 @@ body:has(.welcome) {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 0.15rem;
+  justify-content: flex-start;
+  gap: 0.05rem;
+  width: max-content;
   margin: 0;
+  margin-inline: 0 auto;
   opacity: 0;
   transform: translateY(14px);
 }
 
 .welcome-brand-img {
   display: block;
-  width: min(38vw, 112px);
+  width: min(48vw, 152px);
+  max-width: none;
   height: auto;
+  margin: 0;
+  margin-inline: 0;
   border-radius: 0;
   background: transparent;
   object-fit: contain;
   object-position: left center;
   box-shadow: none;
-}
-
-.welcome-brand-go {
-  flex: 0 0 auto;
-  font-family: var(--font-display);
-  font-size: clamp(1.4rem, 5.5vw, 1.65rem);
-  font-weight: 700;
-  letter-spacing: -0.05em;
-  line-height: 1;
-  color: #ffffff;
-  text-shadow:
-    0 2px 14px rgba(15, 39, 68, 0.45),
-    0 1px 2px rgba(15, 39, 68, 0.35);
 }
 
 .welcome-headline {
@@ -333,18 +344,33 @@ body:has(.welcome) {
   position: relative;
   z-index: 1;
   width: min(100%, 430px);
+  height: var(--sheet-h, auto);
   max-height: min(78dvh, 520px);
-  padding: 0.55rem 1.15rem calc(1.15rem + env(safe-area-inset-bottom, 0px));
+  padding: 0 1.15rem calc(1.15rem + env(safe-area-inset-bottom, 0px));
   border-radius: 22px 22px 0 0;
   background: #ffffff;
   box-shadow: 0 -12px 36px rgba(15, 39, 68, 0.18);
   transform: translateY(110%);
-  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
-  overflow: auto;
+  transition:
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    max-height 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .sheet-panel.is-auth {
   max-height: min(92dvh, 720px);
+}
+
+.sheet-panel.is-expanded {
+  max-height: min(96dvh, 900px);
+  height: var(--sheet-h, min(96dvh, 900px));
+}
+
+.sheet-panel.is-dragging {
+  transition: none;
 }
 
 .sheet-root.is-open .sheet-backdrop {
@@ -355,15 +381,31 @@ body:has(.welcome) {
   transform: translateY(0);
 }
 
+.sheet-drag {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  padding: 0.55rem 0 0.35rem;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.sheet-drag:active {
+  cursor: grabbing;
+}
+
 .sheet-handle {
   width: 42px;
   height: 4px;
-  margin: 0.2rem auto 0.75rem;
+  margin: 0;
   border-radius: 999px;
   background: #d5e0ea;
 }
 
 .sheet-header {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -392,6 +434,11 @@ body:has(.welcome) {
 }
 
 .sheet-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   color: var(--muted);
   font-size: 0.92rem;
   line-height: 1.5;
@@ -560,16 +607,14 @@ body.sheet-open {
   }
 
   .welcome-brand-img {
-    width: min(34vw, 100px);
-  }
-
-  .welcome-brand-go {
-    font-size: 1.35rem;
+    width: min(44vw, 136px);
   }
 
   .ormoc-slider-brand {
     bottom: 1.85rem;
-    left: 1rem;
+    left: 0.75rem;
+    right: auto;
+    margin-inline: 0 auto;
   }
 
   .welcome-content {
@@ -601,8 +646,9 @@ body.sheet-open {
 
   .ormoc-slider-brand {
     bottom: 2.15rem;
-    left: 1.75rem;
+    left: 1.1rem;
     right: auto;
+    margin-inline: 0 auto;
   }
 
   .ormoc-dots {
@@ -620,11 +666,7 @@ body.sheet-open {
   }
 
   .welcome-brand-img {
-    width: min(32vw, 128px);
-  }
-
-  .welcome-brand-go {
-    font-size: 1.7rem;
+    width: min(38vw, 172px);
   }
 
   .welcome-headline {

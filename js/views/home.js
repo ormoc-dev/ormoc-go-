@@ -26,7 +26,7 @@ function renderWelcome() {
 
       <div class="welcome-content">
         <h1 class="welcome-headline">Ormoc details, made simple.</h1>
-        <p class="welcome-copy">A community city guide for Ormocanos and tourists — places, local info, and helpful tools.</p>
+        <p class="welcome-copy">Explore Ormoc places and routes, find local jobs, and stay connected with community tips — made for tourists and Ormocanos.</p>
         <div class="welcome-actions">
           <button type="button" class="btn btn-primary" data-sheet="signup">Get started</button>
           <button type="button" class="btn btn-ghost" data-sheet="login">Sign in</button>

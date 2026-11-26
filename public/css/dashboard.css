@@ -849,10 +849,8 @@ body.emergency-sheet-open {
   height: 2.5rem;
   display: grid;
   place-items: center;
-  border-radius: 999px;
-  background: #fff;
-  box-shadow: 0 6px 20px rgba(15, 39, 68, 0.14);
-  padding: 0.3rem;
+  background: transparent;
+  padding: 0;
 }
 
 .map-search-brand-svg {

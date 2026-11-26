@@ -29,19 +29,18 @@ export function renderOrmocSlider() {
       <div class="ormoc-slider-track">
         ${slides}
       </div>
-      <div class="ormoc-slider-fade" aria-hidden="true"></div>
+      <div class="ormoc-slider-fade ormoc-slider-fade--top" aria-hidden="true"></div>
+      <div class="ormoc-slider-fade ormoc-slider-fade--bottom" aria-hidden="true"></div>
 
-      <div class="ormoc-slider-brand" style="position:absolute;top:auto;left:1.15rem;right:auto;bottom:2.15rem;z-index:2;display:flex;flex-direction:column;align-items:flex-start;gap:0;pointer-events:none;">
-        <div class="welcome-brand" aria-label="OrmocGo" style="display:flex;flex-direction:row;align-items:center;gap:0.15rem;margin:0;">
+      <div class="ormoc-slider-brand">
+        <div class="welcome-brand" aria-label="OrmocGo">
           <img
             src="public/assets/icons/ormoc_banner.png"
             alt=""
             class="welcome-brand-img"
-            width="112"
-            height="26"
-            style="width:112px;max-width:38vw;height:auto;display:block;background:transparent;border:0;box-shadow:none;"
+            width="152"
+            height="36"
           >
-          <span class="welcome-brand-go" style="color:#fff;font-weight:700;font-size:1.55rem;line-height:1;letter-spacing:-0.05em;">Go</span>
         </div>
       </div>
 
