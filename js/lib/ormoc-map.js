@@ -503,28 +503,32 @@ const LAYER_CONFIG = {
   },
   satellite: {
     kind: 'raster',
-    // Google satellite tiles stay sharp at city zoom; Esri World Imagery blurs in Ormoc past ~z16.
+    // Google @2x (scale=2) + tileSize 512 keeps satellite sharp on retina / high-DPI.
+    // Plain 256px tiles look soft when MapLibre stretches them for devicePixelRatio.
     tiles: [
-      'https://mt0.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
-      'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
-      'https://mt2.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
-      'https://mt3.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+      'https://mt0.google.com/vt/lyrs=s&x={x}&y={y}&z={z}&scale=2',
+      'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}&scale=2',
+      'https://mt2.google.com/vt/lyrs=s&x={x}&y={y}&z={z}&scale=2',
+      'https://mt3.google.com/vt/lyrs=s&x={x}&y={y}&z={z}&scale=2',
     ],
     overlays: [
       {
         id: 'labels',
         tiles: [
-          'https://mt0.google.com/vt/lyrs=h&x={x}&y={y}&z={z}',
-          'https://mt1.google.com/vt/lyrs=h&x={x}&y={y}&z={z}',
-          'https://mt2.google.com/vt/lyrs=h&x={x}&y={y}&z={z}',
-          'https://mt3.google.com/vt/lyrs=h&x={x}&y={y}&z={z}',
+          'https://mt0.google.com/vt/lyrs=h&x={x}&y={y}&z={z}&scale=2',
+          'https://mt1.google.com/vt/lyrs=h&x={x}&y={y}&z={z}&scale=2',
+          'https://mt2.google.com/vt/lyrs=h&x={x}&y={y}&z={z}&scale=2',
+          'https://mt3.google.com/vt/lyrs=h&x={x}&y={y}&z={z}&scale=2',
         ],
         attribution: GOOGLE_ATTR,
+        tileSize: 512,
       },
     ],
     attribution: GOOGLE_ATTR,
-    maxzoom: 21,
-    mapMaxZoom: 20,
+    tileSize: 512,
+    maxzoom: 22,
+    mapMaxZoom: 21,
+    resampling: 'linear',
   },
   terrain: {
     kind: 'raster',
@@ -545,11 +549,13 @@ LAYER_CONFIG.roadmap = LAYER_CONFIG.streets;
 
 function buildRasterStyle(cfg) {
   const maxzoom = cfg.maxzoom || 19;
+  const tileSize = cfg.tileSize || 256;
+  const resampling = cfg.resampling || 'linear';
   const sources = {
     basemap: {
       type: 'raster',
       tiles: cfg.tiles,
-      tileSize: 256,
+      tileSize,
       attribution: cfg.attribution,
       maxzoom,
     },
@@ -560,7 +566,7 @@ function buildRasterStyle(cfg) {
     source: 'basemap',
     paint: {
       'raster-fade-duration': 0,
-      'raster-resampling': 'linear',
+      'raster-resampling': resampling,
       'raster-opacity': 1,
     },
   }];
@@ -570,7 +576,7 @@ function buildRasterStyle(cfg) {
     sources[sourceId] = {
       type: 'raster',
       tiles: overlay.tiles,
-      tileSize: 256,
+      tileSize: overlay.tileSize || tileSize,
       attribution: overlay.attribution || cfg.attribution,
       maxzoom: overlay.maxzoom || maxzoom,
     };
@@ -580,7 +586,7 @@ function buildRasterStyle(cfg) {
       source: sourceId,
       paint: {
         'raster-fade-duration': 0,
-        'raster-resampling': 'linear',
+        'raster-resampling': overlay.resampling || resampling,
       },
     });
   });
@@ -615,8 +621,8 @@ export function getLayerPreviewUrl(layerId, { zoom = 13 } = {}) {
   // Carto Voyager matches OpenFreeMap Liberty better than Esri World Street Map
   // (Esri's street tiles are intentionally warm/yellow-beige).
   const streets = `https://basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${tileX}/${tileY}.png`;
-  const imagery = `https://mt1.google.com/vt/lyrs=s&x=${tileX}&y=${tileY}&z=${zoom}`;
-  const labels = `https://mt1.google.com/vt/lyrs=h&x=${tileX}&y=${tileY}&z=${zoom}`;
+  const imagery = `https://mt1.google.com/vt/lyrs=s&x=${tileX}&y=${tileY}&z=${zoom}&scale=2`;
+  const labels = `https://mt1.google.com/vt/lyrs=h&x=${tileX}&y=${tileY}&z=${zoom}&scale=2`;
 
   const previews = {
     streets,
