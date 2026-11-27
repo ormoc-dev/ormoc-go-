@@ -681,6 +681,20 @@ function renderRoutesPanel() {
             decoding="async"
             hidden
           />
+          <div class="routes-idle" id="routes-idle">
+            <img
+              class="routes-idle-chibi"
+              src="public/assets/icons/welcome-guide-chibi.png"
+              alt=""
+              width="72"
+              height="72"
+              decoding="async"
+            />
+            <div class="routes-idle-copy-wrap">
+              <p class="routes-idle-title">Where to?</p>
+              <p class="routes-idle-copy">Pick a destination to compare travel times.</p>
+            </div>
+          </div>
         </div>
 
         <div class="routes-sheet" id="routes-sheet">
@@ -689,21 +703,6 @@ function renderRoutesPanel() {
             <div class="routes-sheet-handle" aria-hidden="true"></div>
           </div>
           <div class="routes-sheet-body">
-            <div class="routes-idle" id="routes-idle">
-              <img
-                class="routes-idle-chibi"
-                src="public/assets/icons/welcome-guide-chibi.png"
-                alt=""
-                width="72"
-                height="72"
-                decoding="async"
-              />
-              <div class="routes-idle-copy-wrap">
-                <p class="routes-idle-title">Where to?</p>
-                <p class="routes-idle-copy">Pick a destination to compare travel times.</p>
-              </div>
-            </div>
-
             <div class="routes-eta is-empty" id="routes-result">
               <strong id="routes-result-time">—</strong>
               <div class="routes-eta-copy">
@@ -806,9 +805,10 @@ function modeIconSvg(kind) {
 function renderModeCard(mode, selectedId) {
   const mins = formatModeMinutes(mode.durationMin);
   const active = mode.id === selectedId ? ' is-selected' : '';
+  const iconKind = escapeHtml(mode.icon || mode.id);
   return `
-    <button type="button" class="route-mode${active}" data-mode="${escapeHtml(mode.id)}" role="listitem" aria-label="${escapeHtml(mode.label)} ${escapeHtml(mins)}">
-      <span class="route-mode-icon">${modeIconSvg(mode.icon)}</span>
+    <button type="button" class="route-mode route-mode--${iconKind}${active}" data-mode="${escapeHtml(mode.id)}" role="listitem" aria-label="${escapeHtml(mode.label)} ${escapeHtml(mins)}">
+      <span class="route-mode-icon" aria-hidden="true">${modeIconSvg(mode.icon)}</span>
       <span class="route-mode-time">${escapeHtml(mins)}</span>
       <span class="route-mode-label">${escapeHtml(mode.label)}</span>
     </button>
@@ -1898,7 +1898,7 @@ export function mountDashboard(root = document) {
           startRouteTracking(routePlan.selectedId);
         }
       });
-      void ensureRouteFromLocation({ focusTo: true });
+      void ensureRouteFromLocation({ focusTo: false });
     } else {
       stopRouteTracking();
     }
@@ -1990,10 +1990,8 @@ export function mountDashboard(root = document) {
     if (!locateBtn) return;
     locateBtn.classList.toggle('is-active', locateTracking);
     locateBtn.setAttribute('aria-pressed', locateTracking ? 'true' : 'false');
-    locateBtn.setAttribute(
-      'aria-label',
-      locateTracking ? 'Stop tracking my location' : 'My location',
-    );
+    locateBtn.setAttribute('aria-label', 'My location');
+    locateBtn.setAttribute('title', 'My location');
   }
 
   function stopLocateTracking({ keepMarker = true } = {}) {
@@ -2001,6 +1999,8 @@ export function mountDashboard(root = document) {
       navigator.geolocation.clearWatch(locateWatchId);
     }
     locateWatchId = null;
+    locateBusy = false;
+    locateBtn?.classList.remove('is-busy');
     setLocateUi(false);
     if (!keepMarker) mapApi?.clearUserLocation?.();
   }
@@ -2023,71 +2023,35 @@ export function mountDashboard(root = document) {
   }
 
   function locateErrorMessage(err) {
-    if (!navigator.geolocation) return 'Location is not supported on this device';
-    if (err?.code === 1) return 'Location permission blocked — allow it in browser settings';
-    if (err?.code === 2) return 'Location unavailable right now';
+    if (!navigator.geolocation) return 'Please turn on location';
+    // Permission denied, position unavailable, or device location off.
+    if (err?.code === 1 || err?.code === 2) return 'Please turn on location';
     if (err?.code === 3) return 'Location request timed out — try again';
-    return err?.message || 'Could not get your location';
-  }
-
-  function startLocateTracking(seq) {
-    if (!navigator.geolocation) {
-      setStatus(locateErrorMessage(), { type: 'error' });
-      return;
-    }
-
-    if (locateWatchId != null && navigator.geolocation) {
-      navigator.geolocation.clearWatch(locateWatchId);
-      locateWatchId = null;
-    }
-
-    setLocateUi(true);
-    setStatus('Tracking your location…', { sticky: true });
-
-    locateWatchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        // Ignore updates after the user turned tracking off / started a new request.
-        if (!locateTracking || seq !== locateSeq) return;
-        applyLocatePosition(pos, { zoom: false });
-        setStatus('Tracking your location');
-      },
-      (err) => {
-        if (seq !== locateSeq) return;
-        stopLocateTracking({ keepMarker: true });
-        setStatus(locateErrorMessage(err), { type: 'error' });
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 1500,
-        timeout: 15000,
-      },
-    );
+    return err?.message || 'Please turn on location';
   }
 
   async function requestAndLocate() {
     if (!navigator.geolocation) {
-      setStatus(locateErrorMessage(), { type: 'error' });
+      stopLocateTracking({ keepMarker: true });
+      showToast('Please turn on location', { type: 'error', duration: 3600 });
       return;
     }
     if (!mapApi) {
-      setStatus('Map is still loading', { type: 'error' });
+      showToast('Map is still loading', { type: 'error' });
       return;
     }
 
-    // Second click always cancels in-flight locate or stops live tracking.
-    if (locateTracking || locateBusy) {
+    // Cancel an in-flight locate request.
+    if (locateBusy) {
       locateSeq += 1;
-      locateBusy = false;
-      locateBtn?.classList.remove('is-busy');
       stopLocateTracking({ keepMarker: true });
-      setStatus('Location tracking off');
       return;
     }
 
     const seq = ++locateSeq;
     locateBusy = true;
+    setLocateUi(true);
     locateBtn?.classList.add('is-busy');
-    setStatus('Getting your location…', { sticky: true });
     setLayersOpen(false);
     setEmergencyOpen(false);
 
@@ -2101,15 +2065,17 @@ export function mountDashboard(root = document) {
       });
       if (seq !== locateSeq) return;
       applyLocatePosition(pos, { zoom: true });
-      startLocateTracking(seq);
+      // One-shot: release the button once the fix is on the map.
+      stopLocateTracking({ keepMarker: true });
     } catch (err) {
       if (seq !== locateSeq) return;
       stopLocateTracking({ keepMarker: true });
-      setStatus(locateErrorMessage(err), { type: 'error', sticky: true });
+      showToast(locateErrorMessage(err), { type: 'error', duration: 3600 });
     } finally {
       if (seq === locateSeq) {
         locateBusy = false;
         locateBtn?.classList.remove('is-busy');
+        setLocateUi(false);
       }
     }
   }

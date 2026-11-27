@@ -474,6 +474,11 @@ const OSM_ATTR = '© <a href="https://www.openstreetmap.org/copyright" target="_
 const ESRI_ATTR = 'Tiles © Esri';
 const GOOGLE_ATTR = 'Imagery © Google';
 const TOPO_ATTR = `${OSM_ATTR} © <a href="https://opentopomap.org" target="_blank" rel="noopener">OpenTopoMap</a>`;
+/** Esri XYZ uses {z}/{y}/{x} (row before column). */
+const ESRI_STREET = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
+const ESRI_LIGHT = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}';
+const ESRI_DARK = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}';
+const ESRI_TOPO = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}';
 
 /** Layer ids used by the Map layers picker. */
 export const MAP_LAYERS = [
@@ -482,24 +487,42 @@ export const MAP_LAYERS = [
   { id: 'dark', label: 'Dark' },
   { id: 'satellite', label: 'Satellite' },
   { id: 'terrain', label: 'Terrain' },
+  { id: 'maptiler', label: 'Voyager' },
+  { id: 'omt', label: 'HOT' },
+  { id: 'osrm', label: 'OSM' },
 ];
 
 /**
- * Basemap configs for MapLibre (no API key).
- * Streets/light/dark use free OpenFreeMap vector styles for sharper labels.
+ * Basemap configs for MapLibre (free sources only — no API keys).
+ * Streets/Light/Dark use Esri rasters (OpenFreeMap vector was loading blank for some users).
  */
 const LAYER_CONFIG = {
+  // Google roadmap — cool “standard” street colors (Esri World Street Map is warm/yellow).
   streets: {
-    kind: 'style-url',
-    styleUrl: 'https://tiles.openfreemap.org/styles/liberty',
+    kind: 'raster',
+    tiles: [
+      'https://mt0.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+      'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+      'https://mt2.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+      'https://mt3.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+    ],
+    attribution: '© Google',
+    maxzoom: 21,
+    mapMaxZoom: 20,
   },
   light: {
-    kind: 'style-url',
-    styleUrl: 'https://tiles.openfreemap.org/styles/positron',
+    kind: 'raster',
+    tiles: [ESRI_LIGHT],
+    attribution: ESRI_ATTR,
+    maxzoom: 16,
+    mapMaxZoom: 16,
   },
   dark: {
-    kind: 'style-url',
-    styleUrl: 'https://tiles.openfreemap.org/styles/dark',
+    kind: 'raster',
+    tiles: [ESRI_DARK],
+    attribution: ESRI_ATTR,
+    maxzoom: 16,
+    mapMaxZoom: 16,
   },
   satellite: {
     kind: 'raster',
@@ -539,6 +562,30 @@ const LAYER_CONFIG = {
     ],
     attribution: TOPO_ATTR,
     maxzoom: 17,
+  },
+  // Free colorful streets (Esri World Street Map — no API key).
+  maptiler: {
+    kind: 'raster',
+    tiles: [ESRI_STREET],
+    attribution: ESRI_ATTR,
+    maxzoom: 19,
+    mapMaxZoom: 19,
+  },
+  // Free topo/community style (Esri World Topo).
+  omt: {
+    kind: 'raster',
+    tiles: [ESRI_TOPO],
+    attribution: ESRI_ATTR,
+    maxzoom: 19,
+    mapMaxZoom: 19,
+  },
+  // Free light-gray “standard” basemap (Esri Light Gray Canvas).
+  osrm: {
+    kind: 'raster',
+    tiles: [ESRI_LIGHT],
+    attribution: ESRI_ATTR,
+    maxzoom: 16,
+    mapMaxZoom: 16,
   },
   google: null,
   roadmap: null,
@@ -618,18 +665,24 @@ function latLngToTile(lat, lng, zoom) {
 export function getLayerPreviewUrl(layerId, { zoom = 13 } = {}) {
   // Slightly inland sample so thumbs show city streets, not Ormoc Bay water.
   const { tileX, tileY } = latLngToTile(ORMOC_CENTER.lat, ORMOC_CENTER.lng, zoom);
-  // Carto Voyager matches OpenFreeMap Liberty better than Esri World Street Map
-  // (Esri's street tiles are intentionally warm/yellow-beige).
-  const streets = `https://basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${tileX}/${tileY}.png`;
+  // Esri free tiles (no API key). Note Esri path is z/y/x.
+  const esriStreet = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/${zoom}/${tileY}/${tileX}`;
+  const light = `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/${zoom}/${tileY}/${tileX}`;
+  const dark = `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/${zoom}/${tileY}/${tileX}`;
+  const topo = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/${zoom}/${tileY}/${tileX}`;
+  const streets = `https://mt1.google.com/vt/lyrs=m&x=${tileX}&y=${tileY}&z=${zoom}`;
   const imagery = `https://mt1.google.com/vt/lyrs=s&x=${tileX}&y=${tileY}&z=${zoom}&scale=2`;
   const labels = `https://mt1.google.com/vt/lyrs=h&x=${tileX}&y=${tileY}&z=${zoom}&scale=2`;
 
   const previews = {
     streets,
-    light: `https://basemaps.cartocdn.com/light_all/${zoom}/${tileX}/${tileY}.png`,
-    dark: `https://basemaps.cartocdn.com/dark_all/${zoom}/${tileX}/${tileY}.png`,
+    light,
+    dark,
     satellite: [labels, imagery],
     terrain: `https://a.tile.opentopomap.org/${zoom}/${tileX}/${tileY}.png`,
+    maptiler: esriStreet,
+    omt: topo,
+    osrm: light,
     google: streets,
     roadmap: streets,
   };
@@ -1202,6 +1255,7 @@ export function createOrmocMap(container, { locate = true, mapType = 'streets' }
           map.setZoom(Math.min(zoom, maxZoom));
           map.setBearing(bearing);
           map.setPitch(pitch);
+          map.resize();
           ensureRouteLayer();
           ensureAccuracyLayer();
           if (savedRoute?.length) {
@@ -1637,12 +1691,27 @@ export async function routeDriving(from, to) {
 
 /** Speeds used when OSRM has no dedicated profile (m/s). */
 const MODE_SPEED_MS = {
-  run: 2.8,        // ~10 km/h jogging
-  motorcycle: 11.1, // ~40 km/h city
+  run: 2.8, // ~10 km/h jogging
+  motorcycle: 13.9, // ~50 km/h city
 };
 
 function durationFromDistance(distanceM, speedMs) {
-  return Math.max(1, (distanceM / speedMs) / 60);
+  const dist = Number(distanceM);
+  const speed = Number(speedMs);
+  if (!(dist > 0) || !(speed > 0)) return null;
+  return (dist / speed) / 60;
+}
+
+/**
+ * Estimate minutes from path distance, capped so derived modes stay realistic
+ * vs their OSRM base (run < walk, motor ≤ car).
+ */
+function estimateModeMinutes(distanceM, speedMs, { maxMin, minMin = 1 } = {}) {
+  const fromDistance = durationFromDistance(distanceM, speedMs);
+  let mins = fromDistance == null ? Number(maxMin) : fromDistance;
+  if (Number.isFinite(maxMin)) mins = Math.min(mins, maxMin);
+  if (!Number.isFinite(mins) || mins <= 0) mins = minMin;
+  return Math.max(minMin, mins);
 }
 
 function buildMode(id, label, icon, base, durationMin) {
@@ -1667,11 +1736,20 @@ export async function routeAllModes(from, to) {
     routeByProfile(from, to, 'driving'),
   ]);
 
+  // Run ~ jogging pace, never slower than walking.
+  const runDuration = estimateModeMinutes(walk.distanceM, MODE_SPEED_MS.run, {
+    maxMin: Math.max(1, walk.durationMin * 0.55),
+  });
+  // Motor slightly faster than car in city traffic; never slower.
+  const motorDuration = estimateModeMinutes(drive.distanceM, MODE_SPEED_MS.motorcycle, {
+    maxMin: Math.max(1, drive.durationMin * 0.9),
+  });
+
   return [
     buildMode('walk', 'Walk', 'walk', walk, walk.durationMin),
-    buildMode('run', 'Run', 'run', walk, durationFromDistance(walk.distanceM, MODE_SPEED_MS.run)),
+    buildMode('run', 'Run', 'run', walk, runDuration),
     buildMode('bike', 'Bike', 'bike', bike, bike.durationMin),
-    buildMode('motorcycle', 'Motor', 'motor', drive, durationFromDistance(drive.distanceM, MODE_SPEED_MS.motorcycle)),
+    buildMode('motorcycle', 'Motor', 'motor', drive, motorDuration),
     buildMode('car', 'Car', 'car', drive, drive.durationMin),
   ];
 }

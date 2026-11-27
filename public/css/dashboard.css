@@ -771,13 +771,16 @@ body.emergency-sheet-open {
 }
 
 .map-layers-sheet {
-  width: 196px;
+  width: 210px;
+  max-height: min(52dvh, 320px);
+  overflow: auto;
   padding: 0.4rem;
   border-radius: 12px;
   background: #ffffff;
   border: 1px solid rgba(213, 230, 245, 0.95);
   box-shadow: 0 8px 22px rgba(15, 39, 68, 0.18);
   animation: layers-sheet-in 160ms ease both;
+  scrollbar-width: thin;
 }
 
 @keyframes layers-sheet-in {
@@ -1323,16 +1326,23 @@ body.signout-confirm-open {
 }
 
 .routes-idle {
+  position: absolute;
+  left: 0.55rem;
+  right: 0.55rem;
+  bottom: 0.55rem;
+  z-index: 3;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 0.35rem 0.55rem;
-  margin: 0 0 0.55rem;
+  margin: 0;
   padding: 0.45rem 0.55rem 0.45rem 0.35rem;
   border-radius: 14px;
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.96);
   border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  box-shadow: 0 8px 22px rgba(15, 39, 68, 0.12);
   text-align: left;
+  pointer-events: none;
 }
 
 .routes-idle[hidden] {
@@ -1365,10 +1375,6 @@ body.signout-confirm-open {
   color: var(--muted);
   font-size: 0.78rem;
   line-height: 1.35;
-}
-
-.routes-sheet.has-route .routes-idle {
-  display: none !important;
 }
 
 .routes-sheet {
@@ -1822,7 +1828,31 @@ body.signout-confirm-open {
   place-items: center;
   width: 1.25rem;
   height: 1.25rem;
-  color: inherit;
+  color: #5f6368;
+}
+
+.route-mode--walk .route-mode-icon {
+  color: #1a73e8;
+}
+
+.route-mode--run .route-mode-icon {
+  color: #d93025;
+}
+
+.route-mode--bike .route-mode-icon {
+  color: #188038;
+}
+
+.route-mode--motor .route-mode-icon {
+  color: #f9ab00;
+}
+
+.route-mode--car .route-mode-icon {
+  color: #5f6368;
+}
+
+.route-mode.is-selected .route-mode-icon {
+  color: var(--brand);
 }
 
 .route-mode-time {
@@ -2908,26 +2938,33 @@ body.signout-confirm-open {
 }
 
 .saved-filters {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.3rem;
-  overflow: visible;
+  display: flex;
+  gap: 0.35rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.05rem;
+}
+
+.saved-filters::-webkit-scrollbar {
+  display: none;
 }
 
 .saved-filter {
+  flex: 0 0 auto;
   appearance: none;
-  border: 0;
+  border: 1px solid transparent;
   border-radius: 999px;
-  padding: 0.42rem 0.35rem;
-  background: #fff;
+  padding: 0.4rem 0.78rem;
+  background: transparent;
   color: var(--muted);
   font: inherit;
-  font-size: 0.72rem;
-  font-weight: 700;
+  font-size: 0.78rem;
+  font-weight: 650;
   text-align: center;
   white-space: nowrap;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(15, 39, 68, 0.08);
+  box-shadow: none;
   transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease;
 }
 
