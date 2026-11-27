@@ -497,18 +497,20 @@ export const MAP_LAYERS = [
  * Streets/Light/Dark use Esri rasters (OpenFreeMap vector was loading blank for some users).
  */
 const LAYER_CONFIG = {
-  // Google roadmap — cool “standard” street colors (Esri World Street Map is warm/yellow).
+  // Google roadmap @2x — cool street colors + sharp on high-DPI (256px tiles look soft).
   streets: {
     kind: 'raster',
     tiles: [
-      'https://mt0.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-      'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-      'https://mt2.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-      'https://mt3.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+      'https://mt0.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&scale=2',
+      'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&scale=2',
+      'https://mt2.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&scale=2',
+      'https://mt3.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&scale=2',
     ],
     attribution: '© Google',
-    maxzoom: 21,
-    mapMaxZoom: 20,
+    tileSize: 512,
+    maxzoom: 22,
+    mapMaxZoom: 21,
+    resampling: 'linear',
   },
   light: {
     kind: 'raster',
@@ -670,7 +672,7 @@ export function getLayerPreviewUrl(layerId, { zoom = 13 } = {}) {
   const light = `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/${zoom}/${tileY}/${tileX}`;
   const dark = `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/${zoom}/${tileY}/${tileX}`;
   const topo = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/${zoom}/${tileY}/${tileX}`;
-  const streets = `https://mt1.google.com/vt/lyrs=m&x=${tileX}&y=${tileY}&z=${zoom}`;
+  const streets = `https://mt1.google.com/vt/lyrs=m&x=${tileX}&y=${tileY}&z=${zoom}&scale=2`;
   const imagery = `https://mt1.google.com/vt/lyrs=s&x=${tileX}&y=${tileY}&z=${zoom}&scale=2`;
   const labels = `https://mt1.google.com/vt/lyrs=h&x=${tileX}&y=${tileY}&z=${zoom}&scale=2`;
 
