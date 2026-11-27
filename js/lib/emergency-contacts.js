@@ -1,6 +1,8 @@
 const DB_NAME = 'ormocgo-emergency';
 const STORE = 'contacts';
-const CACHE_KEY = 'contacts-v3';
+const CACHE_KEY = 'contacts-v4';
+/** Bump when EMERGENCY_SEED changes so IndexedDB picks up new stations/numbers. */
+const SEED_VERSION = 5;
 
 const GROUP_META = {
   national: { category: 'national', group: 'national', label: 'National' },
@@ -98,6 +100,7 @@ export const EMERGENCY_SEED = [
     lat: 11.0052,
     lon: 124.6084,
   },
+  // Police — official LGU Ormoc / BetterOrmoc hotlines (+ OCPO social listings).
   {
     id: 'police-hq',
     group: 'police',
@@ -114,9 +117,29 @@ export const EMERGENCY_SEED = [
     placeId: 'police-st1',
     name: 'Station 1 (Cogon)',
     phone: '0998-598-6691',
-    note: 'Aunubing St · Cogon',
+    note: 'Smart · Aunubing St · Cogon',
     lat: 11.014122,
     lon: 124.60351,
+  },
+  {
+    id: 'police-st1-globe',
+    group: 'police',
+    placeId: 'police-st1',
+    name: 'Station 1 (Cogon)',
+    phone: '0935-441-7443',
+    note: 'Globe · Aunubing St · Cogon',
+    lat: 11.014122,
+    lon: 124.60351,
+  },
+  {
+    id: 'police-tmu',
+    group: 'police',
+    placeId: 'police-tmu',
+    name: 'Traffic Management Unit',
+    phone: '(053) 255-2024',
+    note: '1 Jose Navarro St · Downtown',
+    lat: 11.005736,
+    lon: 124.608788,
   },
   {
     id: 'police-st2',
@@ -163,10 +186,40 @@ export const EMERGENCY_SEED = [
     group: 'police',
     placeId: 'police-st6',
     name: 'Station 6 (Ipil)',
-    phone: '0970-056-4173',
+    phone: '0955-362-7125',
     note: 'Brgy. Ipil',
     lat: 10.977421,
     lon: 124.632237,
+  },
+  {
+    id: 'police-st6-alt',
+    group: 'police',
+    placeId: 'police-st6',
+    name: 'Station 6 (Ipil)',
+    phone: '0970-056-4173',
+    note: 'Brgy. Ipil · Alternate',
+    lat: 10.977421,
+    lon: 124.632237,
+  },
+  {
+    id: 'police-mfc',
+    group: 'police',
+    placeId: 'police-mfc',
+    name: 'Mobile Force Company',
+    phone: '0998-967-4959',
+    note: 'Citywide mobile unit',
+    lat: 10.9987846,
+    lon: 124.6168889,
+  },
+  {
+    id: 'police-mfc-landline',
+    group: 'police',
+    placeId: 'police-mfc',
+    name: 'Mobile Force Company',
+    phone: '(053) 561-6253',
+    note: 'Landline',
+    lat: 10.9987846,
+    lon: 124.6168889,
   },
   {
     id: 'hospital-doctors-1',
@@ -364,6 +417,7 @@ export async function saveEmergencyContacts(list = EMERGENCY_SEED) {
   const payload = {
     contacts,
     updatedAt: Date.now(),
+    seedVersion: SEED_VERSION,
   };
   const db = await openDb();
   const tx = db.transaction(STORE, 'readwrite');
@@ -378,15 +432,18 @@ export async function getEmergencyContacts() {
     const tx = db.transaction(STORE, 'readonly');
     const row = await idbRequest(tx.objectStore(STORE).get(CACHE_KEY));
     db.close();
-    if (row?.contacts?.length) return normalizeList(row.contacts);
+    if (row?.contacts?.length && row.seedVersion === SEED_VERSION) {
+      return normalizeList(row.contacts);
+    }
   } catch (err) {
     console.warn('[OrmocGo] Emergency cache read failed', err);
   }
   return saveEmergencyContacts(EMERGENCY_SEED);
 }
 
+/** Always re-seed from the latest built-in list (stations/numbers can change). */
 export async function ensureEmergencyContactsCached() {
-  return getEmergencyContacts();
+  return saveEmergencyContacts(EMERGENCY_SEED);
 }
 
 export function groupEmergencyContacts(list) {

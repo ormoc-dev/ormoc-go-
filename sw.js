@@ -1,4 +1,4 @@
-/* OrmocGo PWA service worker — shell + limited offline features */
+/* OrmocGo PWA service worker — shell + offline map tiles */
 const APP_VERSION = (() => {
   try {
     const param = new URL(self.location.href).searchParams.get('v');
@@ -8,6 +8,7 @@ const APP_VERSION = (() => {
 })();
 
 const SHELL_CACHE = `ormocgo-shell-${APP_VERSION}`;
+const TILE_CACHE = 'ormocgo-map-tiles';
 
 /** App shell + modules needed for offline limited features. */
 const PRECACHE_SHELL = [
@@ -27,6 +28,7 @@ const PRECACHE_SHELL = [
   './js/supabase.js',
   './js/lib/navigate.js',
   './js/lib/ormoc-map.js',
+  './js/lib/offline-map.js',
   './js/lib/google-auth.js',
   './js/lib/google-button.js',
   './js/lib/password-field.js',
@@ -59,7 +61,6 @@ const PRECACHE_SHELL = [
 
 /** Static content available offline (Photo Archive, welcome slides, tourist cards). */
 const PRECACHE_MEDIA = [
-  // Photo Archive (City of Ormoc heritage)
   './public/assets/images/ormoc/archive/archive1.jpg',
   './public/assets/images/ormoc/archive/archive2.jpg',
   './public/assets/images/ormoc/archive/archive3.jpg',
@@ -76,7 +77,6 @@ const PRECACHE_MEDIA = [
   './public/assets/images/ormoc/archive/oldmaternity.jpg',
   './public/assets/images/ormoc/archive/dominadortan.jpg',
   './public/assets/images/ormoc/archive/sppc.jpg',
-  // Welcome slider
   './public/assets/images/ormoc/lake-danao/01-lake-danao.jpg',
   './public/assets/images/ormoc/lake-danao/02-lake-danao-park.jpg',
   './public/assets/images/ormoc/lake-danao/04-calm-reflection.jpg',
@@ -93,7 +93,6 @@ const PRECACHE_MEDIA = [
   './public/assets/images/ormoc/1000011174.jpg',
   './public/assets/images/ormoc/1000011176.jpg',
   './public/assets/images/ormoc/1000011178.jpg',
-  // Tourist spot cards
   './public/assets/images/ormoc/tourist-spots/ormoc-tourist-spots-hero.jpg',
   './public/assets/images/ormoc/tourist-spots/lake-danao.jpg',
   './public/assets/images/ormoc/tourist-spots/alto-peak.jpg',
@@ -111,6 +110,12 @@ const PRECACHE_MEDIA = [
   './public/assets/images/ormoc/tourist-spots/martas.jpg',
 ];
 
+/** MapLibre must be cached for the map to start offline. */
+const PRECACHE_MAP_CDN = [
+  'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css',
+  'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js',
+];
+
 async function precacheList(cache, urls) {
   await Promise.all(
     urls.map(async (url) => {
@@ -118,6 +123,19 @@ async function precacheList(cache, urls) {
         await cache.add(url);
       } catch (err) {
         console.warn('[OrmocGo SW] precache skip', url, err);
+      }
+    })
+  );
+}
+
+async function precacheCdn(cache, urls) {
+  await Promise.all(
+    urls.map(async (url) => {
+      try {
+        const res = await fetch(url, { mode: 'cors', credentials: 'omit' });
+        if (res && res.ok) await cache.put(url, res.clone());
+      } catch (err) {
+        console.warn('[OrmocGo SW] CDN precache skip', url, err);
       }
     })
   );
@@ -139,11 +157,26 @@ function isStaticAsset(url) {
   );
 }
 
+/** Cross-origin map tiles + MapLibre CDN — cache for offline map. */
+function isMapOfflineAsset(url) {
+  const host = url.hostname;
+  if (host.includes('jsdelivr.net') && url.pathname.includes('maplibre-gl')) return true;
+  if (host.includes('googleapis.com') || host.includes('gstatic.com')) return false;
+  if (host.endsWith('google.com') && (url.pathname.includes('/vt/') || url.search.includes('lyrs='))) {
+    return true;
+  }
+  if (host.includes('arcgisonline.com')) return true;
+  if (host.includes('opentopomap.org')) return true;
+  return false;
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
-    const cache = await caches.open(SHELL_CACHE);
-    await precacheList(cache, PRECACHE_SHELL);
-    await precacheList(cache, PRECACHE_MEDIA);
+    const shell = await caches.open(SHELL_CACHE);
+    await precacheList(shell, PRECACHE_SHELL);
+    await precacheList(shell, PRECACHE_MEDIA);
+    const tiles = await caches.open(TILE_CACHE);
+    await precacheCdn(tiles, PRECACHE_MAP_CDN);
     await self.skipWaiting();
   })());
 });
@@ -165,6 +198,37 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
 
   const url = new URL(req.url);
+
+  // Map tiles / MapLibre CDN (cross-origin): cache-first for offline Streets map.
+  if (url.origin !== self.location.origin && isMapOfflineAsset(url)) {
+    event.respondWith((async () => {
+      const cache = await caches.open(TILE_CACHE);
+      const cached = await cache.match(req) || await cache.match(url.href);
+      if (cached) return cached;
+      try {
+        // Prefer CORS so MapLibre can paint cached rasters / run the CDN script.
+        let fresh;
+        try {
+          fresh = await fetch(url.href, { mode: 'cors', credentials: 'omit' });
+        } catch (_) {
+          fresh = null;
+        }
+        const isCdn = url.hostname.includes('jsdelivr.net');
+        if ((!fresh || !fresh.ok) && !isCdn) {
+          fresh = await fetch(url.href, { mode: 'no-cors', credentials: 'omit' });
+        }
+        if (fresh && (fresh.ok || fresh.type === 'opaque')) {
+          cache.put(url.href, fresh.clone());
+        }
+        if (fresh) return fresh;
+        return cached || Response.error();
+      } catch (_) {
+        return cached || Response.error();
+      }
+    })());
+    return;
+  }
+
   if (url.origin !== self.location.origin) return;
 
   // Never cache env files (always network).

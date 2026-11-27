@@ -7,6 +7,7 @@ import { renderHeader } from './components/header.js';
 import { renderFooter } from './components/footer.js';
 import { renderSidebar, bindSidebar } from './components/sidebar.js';
 import { ensureEmergencyContactsCached } from './lib/emergency-contacts.js';
+import { warmOrmocMapOffline } from './lib/offline-map.js';
 
 const app = document.getElementById('app');
 const headerSlot = document.getElementById('header-slot');
@@ -31,7 +32,7 @@ function syncOfflineBanner() {
     banner.id = 'offline-banner';
     banner.className = 'offline-banner';
     banner.setAttribute('role', 'status');
-    banner.textContent = "You're offline · Archive & saved still work";
+    banner.textContent = "You're offline · Map, archive & saved still work";
     document.body.prepend(banner);
   }
   banner.hidden = false;
@@ -238,6 +239,24 @@ async function boot() {
     bindOfflineBanner();
     // Seed IndexedDB emergency contacts while online/offline so the modal works offline.
     void ensureEmergencyContactsCached().catch(() => {});
+    // Warm Ormoc street tiles + MapLibre CDN while online (idle) for offline map.
+    const scheduleWarm = () => {
+      void warmOrmocMapOffline().catch((err) => {
+        console.warn('[OrmocGo] Map offline warm failed', err);
+      });
+    };
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(scheduleWarm, { timeout: 8000 });
+    } else {
+      setTimeout(scheduleWarm, 2500);
+    }
+    window.addEventListener('online', () => {
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(scheduleWarm, { timeout: 8000 });
+      } else {
+        setTimeout(scheduleWarm, 1500);
+      }
+    });
     await getSupabase();
     bindAuthListener();
     await render();

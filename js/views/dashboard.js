@@ -674,27 +674,13 @@ function renderRoutesPanel() {
           <img
             class="routes-guide-chibi"
             id="routes-guide-chibi"
-            src="public/assets/icons/welcome-guide-chibi.png"
+            src="public/assets/icons/routes-guide-chibi.jpg"
             alt=""
             width="64"
             height="64"
             decoding="async"
             hidden
           />
-          <div class="routes-idle" id="routes-idle">
-            <img
-              class="routes-idle-chibi"
-              src="public/assets/icons/welcome-guide-chibi.png"
-              alt=""
-              width="72"
-              height="72"
-              decoding="async"
-            />
-            <div class="routes-idle-copy-wrap">
-              <p class="routes-idle-title">Where to?</p>
-              <p class="routes-idle-copy">Pick a destination to compare travel times.</p>
-            </div>
-          </div>
         </div>
 
         <div class="routes-sheet" id="routes-sheet">
@@ -703,7 +689,22 @@ function renderRoutesPanel() {
             <div class="routes-sheet-handle" aria-hidden="true"></div>
           </div>
           <div class="routes-sheet-body">
-            <div class="routes-eta is-empty" id="routes-result">
+            <div class="routes-idle" id="routes-idle">
+              <img
+                class="routes-idle-chibi"
+                src="public/assets/icons/routes-guide-chibi.jpg"
+                alt=""
+                width="72"
+                height="72"
+                decoding="async"
+              />
+              <div class="routes-idle-copy-wrap">
+                <p class="routes-idle-title">Asa ka padong bai?</p>
+                <p class="routes-idle-copy">Pilia ang destinasyon aron itandi ang oras sa biyahe.</p>
+              </div>
+            </div>
+
+            <div class="routes-eta is-empty" id="routes-result" hidden>
               <strong id="routes-result-time">—</strong>
               <div class="routes-eta-copy">
                 <span id="routes-summary">Choose a destination to see travel time</span>
@@ -1477,8 +1478,16 @@ function renderTouristRail() {
     <div class="tourist-stack" id="tourist-stack" hidden>
       <div class="tourist-rail" id="tourist-rail" aria-label="Tourist spots">
         <div class="tourist-rail-head">
+          <img
+            class="tourist-rail-chibi"
+            src="public/assets/icons/tourist-guide-chibi.png"
+            alt=""
+            width="56"
+            height="56"
+            decoding="async"
+          />
           <div class="tourist-rail-copy">
-            <p class="tourist-rail-title">Tourist spots</p>
+            <p class="tourist-rail-title">Kitaa ang suroyanan bai!</p>
             <p class="tourist-rail-sub">11 local favorites around Ormoc</p>
           </div>
           <button type="button" class="tourist-rail-close" id="tourist-rail-close" aria-label="Close tourist spots">
@@ -2130,6 +2139,11 @@ export function mountDashboard(root = document) {
     }
 
     setTab('routes');
+    // Let the Routes panel lay out before MapLibre measures the canvas.
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const bootApi = await ensureRoutesMap();
+    bootApi?.invalidate?.();
+
     applyPlaceToInput(routesForm.to, {
       lat,
       lon,
@@ -2141,6 +2155,11 @@ export function mountDashboard(root = document) {
 
     if (routesForm.from.value.trim() || routesForm.from.dataset.lat) {
       await runDirections();
+      // One more paint after sheet height settles — fixes missing OSRM line.
+      requestAnimationFrame(() => {
+        routesMapApi?.refreshRoute?.();
+        routesMapApi?.invalidate?.();
+      });
     } else {
       setStatus('Set your starting point, then tap Go');
     }
@@ -2655,7 +2674,6 @@ export function mountDashboard(root = document) {
   let suggestItems = [];
   let suggestTarget = null;
   let routeWatchId = null;
-  let routeFollowFitted = false;
 
   function isLiveFollowMode(modeId) {
     return modeId === 'walk' || modeId === 'run';
@@ -2666,7 +2684,6 @@ export function mountDashboard(root = document) {
       navigator.geolocation.clearWatch(routeWatchId);
     }
     routeWatchId = null;
-    routeFollowFitted = false;
   }
 
   function startRouteTracking(modeId) {
@@ -2686,15 +2703,9 @@ export function mountDashboard(root = document) {
         api.setUserLocation(latlng, {
           accuracy: pos.coords.accuracy,
           heading: pos.coords.heading,
-          follow: true,
+          follow: false,
           moveStart: false,
         });
-
-        // Keep walker centered after the first route fit.
-        if (!routeFollowFitted) {
-          routeFollowFitted = true;
-          api.map.setZoom(Math.max(api.map.getZoom() || 16, 17));
-        }
       },
       () => {},
       {
@@ -2733,8 +2744,8 @@ export function mountDashboard(root = document) {
         if (title) title.textContent = 'Finding routes…';
         if (copy) copy.textContent = 'Comparing walk, run, bike, motor, and car.';
       } else {
-        if (title) title.textContent = 'Where to?';
-        if (copy) copy.textContent = 'Pick a destination to compare travel times.';
+        if (title) title.textContent = 'Asa ka padong bai?';
+        if (copy) copy.textContent = 'Pilia ang destinasyon aron itandi ang oras sa biyahe.';
       }
     }
     if (routesGuideChibi) routesGuideChibi.hidden = next !== 'guide';
@@ -2873,6 +2884,11 @@ export function mountDashboard(root = document) {
         fit: true,
       });
       api.invalidate();
+      // Re-paint after layout — Routes map often starts at 0×0 while the panel is hidden.
+      window.setTimeout(() => {
+        api.refreshRoute?.();
+        api.invalidate();
+      }, 160);
 
       if (live) {
         // Seed current position immediately, then keep watching as the user walks.
@@ -2880,7 +2896,7 @@ export function mountDashboard(root = document) {
           const here = await getCurrentPosition();
           api.setUserLocation(
             { lat: here.lat, lng: here.lon },
-            { follow: true, accuracy: 25 },
+            { follow: false, accuracy: 25 },
           );
         } catch (_) { /* watch will still try */ }
         startRouteTracking(mode.id);
@@ -3112,7 +3128,8 @@ export function mountDashboard(root = document) {
     });
   }
 
-  ensureRoutesMap().catch(() => {});
+  // Don't create the Routes map while its panel is display:none — that leaves
+  // MapLibre at 0×0 and the OSRM line never paints (markers still show).
 
   shell.querySelectorAll('[data-more-sheet]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -3826,6 +3843,11 @@ export function mountDashboard(root = document) {
   setTab(initialTab);
   initMap();
   void syncGoogleAccountProfile();
+
+  // Show tourist spots rail by default when landing on Map.
+  if (initialTab === 'map') {
+    setTouristRailOpen(true);
+  }
 
   // Keep tab + More sub-view in sync if URL changes.
   window.addEventListener('popstate', () => {

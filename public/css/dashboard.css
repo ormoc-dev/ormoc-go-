@@ -1310,15 +1310,28 @@ body.signout-confirm-open {
 
 .routes-guide-chibi {
   position: absolute;
-  left: 0.45rem;
-  bottom: 0.35rem;
+  left: 0.35rem;
+  bottom: 0.25rem;
   z-index: 2;
-  width: 3.8rem;
-  height: 3.8rem;
+  width: 4.4rem;
+  height: 4.4rem;
   object-fit: contain;
   object-position: center bottom;
   pointer-events: none;
-  filter: drop-shadow(0 4px 8px rgba(15, 39, 68, 0.12));
+  background: transparent;
+  mix-blend-mode: darken;
+  filter: none;
+  box-shadow: none;
+}
+
+.ormoc-route-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 1;
 }
 
 .routes-guide-chibi[hidden] {
@@ -1326,36 +1339,35 @@ body.signout-confirm-open {
 }
 
 .routes-idle {
-  position: absolute;
-  left: 0.55rem;
-  right: 0.55rem;
-  bottom: 0.55rem;
-  z-index: 3;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 0.35rem 0.55rem;
-  margin: 0;
-  padding: 0.45rem 0.55rem 0.45rem 0.35rem;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
-  box-shadow: 0 8px 22px rgba(15, 39, 68, 0.12);
+  gap: 0.4rem 0.6rem;
+  margin: 0 0 0.45rem;
+  padding: 0.1rem 0;
+  background: transparent;
+  border: 0;
   text-align: left;
-  pointer-events: none;
 }
 
 .routes-idle[hidden] {
   display: none !important;
 }
 
+.routes-idle.is-loading-hint {
+  background: transparent;
+  border: 0;
+}
+
 .routes-idle-chibi {
-  width: 3.8rem;
-  height: 3.8rem;
+  width: 3.6rem;
+  height: 3.6rem;
   object-fit: contain;
   object-position: center bottom;
   display: block;
   flex-shrink: 0;
+  background: transparent;
+  mix-blend-mode: darken;
 }
 
 .routes-idle-copy-wrap {
@@ -1363,9 +1375,9 @@ body.signout-confirm-open {
 }
 
 .routes-idle-title {
-  margin: 0 0 0.15rem;
+  margin: 0 0 0.12rem;
   font-family: var(--font-display);
-  font-size: 0.98rem;
+  font-size: 0.95rem;
   letter-spacing: -0.03em;
   color: var(--text);
 }
@@ -1373,8 +1385,12 @@ body.signout-confirm-open {
 .routes-idle-copy {
   margin: 0;
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   line-height: 1.35;
+}
+
+.routes-eta[hidden] {
+  display: none !important;
 }
 
 .routes-sheet {
@@ -3166,13 +3182,26 @@ body.signout-confirm-open {
 .tourist-rail-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0 0.85rem 0.05rem;
+  gap: 0.55rem;
+  padding: 0.35rem 0.85rem 0.4rem;
+  background: #ffffff;
+}
+
+.tourist-rail-chibi {
+  width: 3.35rem;
+  height: 3.35rem;
+  object-fit: contain;
+  object-position: center bottom;
+  flex-shrink: 0;
+  display: block;
+  background: transparent;
+  filter: none;
+  box-shadow: none;
 }
 
 .tourist-rail-copy {
   min-width: 0;
+  flex: 1;
 }
 
 .tourist-rail-title {
@@ -3193,6 +3222,7 @@ body.signout-confirm-open {
   appearance: none;
   width: 1.85rem;
   height: 1.85rem;
+  margin-left: auto;
   border: 0;
   border-radius: 999px;
   background: color-mix(in srgb, var(--brand) 8%, #fff);

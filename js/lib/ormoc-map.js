@@ -267,7 +267,14 @@ const CATEGORY_LANDMARKS = {
       lon: 124.60351,
       name: 'Police Station 1 (Cogon)',
       display_name: 'Police Station 1, Aunubing Street, Brgy. Cogon, Ormoc City, Leyte',
-      phones: ['0998-598-6691'],
+      phones: ['0998-598-6691', '0935-441-7443'],
+    },
+    {
+      lat: 11.005736,
+      lon: 124.608788,
+      name: 'Traffic Management Unit',
+      display_name: 'Ormoc City Police Office - Traffic Management Unit, 1 Jose Navarro St, Ormoc City, Leyte',
+      phones: ['(053) 255-2024'],
     },
     {
       lat: 11.1014901,
@@ -302,7 +309,14 @@ const CATEGORY_LANDMARKS = {
       lon: 124.632237,
       name: 'Police Station 6 (Ipil)',
       display_name: 'Police Station 6, Brgy. Ipil, Ormoc City, Leyte',
-      phones: ['0970-056-4173'],
+      phones: ['0955-362-7125', '0970-056-4173'],
+    },
+    {
+      lat: 10.9987846,
+      lon: 124.6168889,
+      name: 'Mobile Force Company',
+      display_name: 'Ormoc City Police Mobile Force Company, Camp Downes, Ormoc City, Leyte',
+      phones: ['0998-967-4959', '(053) 561-6253'],
     },
   ],
   malls: [
@@ -887,6 +901,14 @@ export function createOrmocMap(container, { locate = true, mapType = 'streets' }
       pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
     });
 
+    // While online, warm Ormoc street tiles into Cache API for offline viewing.
+    map.once('load', () => {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+      import('./offline-map.js')
+        .then((m) => m.warmOrmocMapOffline())
+        .catch(() => {});
+    });
+
     const markers = [];
     const routeMarkers = [];
     let userMarker = null;
@@ -1141,14 +1163,17 @@ export function createOrmocMap(container, { locate = true, mapType = 'streets' }
 
     let lastRouteCoords = null;
 
-    function routeFeature(lineCoords) {
+    function routeFeatureCollection(lineCoords) {
       return {
-        type: 'Feature',
-        properties: {},
-        geometry: {
-          type: 'LineString',
-          coordinates: lineCoords,
-        },
+        type: 'FeatureCollection',
+        features: [{
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'LineString',
+            coordinates: lineCoords,
+          },
+        }],
       };
     }
 
@@ -1172,7 +1197,7 @@ export function createOrmocMap(container, { locate = true, mapType = 'streets' }
             },
             paint: {
               'line-color': '#ffffff',
-              'line-width': 9,
+              'line-width': 10,
               'line-opacity': 0.95,
             },
           });
@@ -1187,41 +1212,107 @@ export function createOrmocMap(container, { locate = true, mapType = 'streets' }
               'line-join': 'round',
             },
             paint: {
-              'line-color': '#2563eb',
-              'line-width': 5,
+              'line-color': '#1a73e8',
+              'line-width': 5.5,
               'line-opacity': 1,
             },
           });
         }
+        // Keep the route above basemap / label rasters.
+        try {
+          if (map.getLayer('ormoc-route-casing')) map.moveLayer('ormoc-route-casing');
+          if (map.getLayer('ormoc-route-line')) map.moveLayer('ormoc-route-line');
+        } catch (_) { /* ignore */ }
         return true;
       } catch (_) {
         return false;
       }
     }
 
+    const routeOverlay = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    routeOverlay.setAttribute('class', 'ormoc-route-overlay');
+    routeOverlay.setAttribute('aria-hidden', 'true');
+    const routeCasing = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    const routeStroke = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    routeCasing.setAttribute('fill', 'none');
+    routeCasing.setAttribute('stroke', '#ffffff');
+    routeCasing.setAttribute('stroke-width', '9');
+    routeCasing.setAttribute('stroke-linecap', 'round');
+    routeCasing.setAttribute('stroke-linejoin', 'round');
+    routeStroke.setAttribute('fill', 'none');
+    routeStroke.setAttribute('stroke', '#1a73e8');
+    routeStroke.setAttribute('stroke-width', '5');
+    routeStroke.setAttribute('stroke-linecap', 'round');
+    routeStroke.setAttribute('stroke-linejoin', 'round');
+    routeOverlay.append(routeCasing, routeStroke);
+    container.appendChild(routeOverlay);
+
+    function syncRouteOverlay() {
+      if (!lastRouteCoords || lastRouteCoords.length < 2) {
+        routeCasing.setAttribute('points', '');
+        routeStroke.setAttribute('points', '');
+        return;
+      }
+      const parts = [];
+      lastRouteCoords.forEach((coord) => {
+        const p = map.project(coord);
+        if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return;
+        parts.push(`${p.x.toFixed(1)},${p.y.toFixed(1)}`);
+      });
+      const points = parts.join(' ');
+      routeCasing.setAttribute('points', points);
+      routeStroke.setAttribute('points', points);
+    }
+
+    map.on('move', syncRouteOverlay);
+    map.on('resize', syncRouteOverlay);
+    map.on('rotate', syncRouteOverlay);
+    map.on('pitch', syncRouteOverlay);
+
     function paintRouteLine(lineCoords) {
       if (!lineCoords?.length) return false;
+      lastRouteCoords = lineCoords;
+      syncRouteOverlay();
       if (!ensureRouteLayer()) return false;
       const source = map.getSource('ormoc-route');
       if (!source) return false;
-      source.setData(routeFeature(lineCoords));
+      source.setData(routeFeatureCollection(lineCoords));
+      try {
+        map.triggerRepaint();
+      } catch (_) { /* ignore */ }
       return true;
     }
 
+    /**
+     * Run `fn` when the style can accept sources/layers.
+     * Maps created while the Routes panel is `display:none` can miss `style.load`
+     * and keep `isStyleLoaded()` false until resize — so we always schedule
+     * fallbacks instead of waiting forever. `fn` must be safe to call more than once.
+     */
     function whenStyleReady(fn) {
       const run = () => {
+        if (!map.getStyle()) {
+          map.once('style.load', () => requestAnimationFrame(run));
+          return;
+        }
         try {
           fn();
         } catch (_) {
           map.once('style.load', () => requestAnimationFrame(run));
         }
       };
+
       if (map.isStyleLoaded()) {
         run();
-        return;
+      } else {
+        map.once('load', () => requestAnimationFrame(run));
+        map.once('style.load', () => requestAnimationFrame(run));
+        map.once('idle', () => requestAnimationFrame(run));
       }
-      // `load` only fires once; style switches need `style.load`.
-      map.once('style.load', () => requestAnimationFrame(run));
+      // Fallbacks for zero-size / already-fired style events.
+      requestAnimationFrame(() => setTimeout(run, 0));
+      setTimeout(run, 120);
+      setTimeout(run, 400);
     }
 
     const api = {
@@ -1363,11 +1454,18 @@ export function createOrmocMap(container, { locate = true, mapType = 'streets' }
         if (lineCoords.length < 2) return;
 
         lastRouteCoords = lineCoords;
-        whenStyleReady(() => {
-          if (!paintRouteLine(lineCoords)) {
-            map.once('style.load', () => paintRouteLine(lineCoords));
+
+        const paintNow = () => {
+          if (!paintRouteLine(lineCoords) && lastRouteCoords === lineCoords) {
+            map.once('style.load', () => {
+              if (lastRouteCoords === lineCoords) paintRouteLine(lineCoords);
+            });
           }
-        });
+        };
+
+        // Paint immediately when possible, then retry via whenStyleReady / after resize.
+        paintNow();
+        whenStyleReady(paintNow);
 
         const start = lineCoords[0];
         const end = lineCoords[lineCoords.length - 1];
@@ -1398,11 +1496,22 @@ export function createOrmocMap(container, { locate = true, mapType = 'streets' }
           if (liveStart && userMarker) {
             bounds.extend(userMarker.getLngLat());
           }
-          map.fitBounds(bounds, { padding: 72, maxZoom: 17 });
+          map.fitBounds(bounds, { padding: 56, maxZoom: 16 });
+          map.once('moveend', syncRouteOverlay);
         }
+        syncRouteOverlay();
+      },
+      /** Re-paint last OSRM line after panel show / resize (GL layers need a real size). */
+      refreshRoute() {
+        if (!lastRouteCoords?.length) return false;
+        map.resize();
+        return paintRouteLine(lastRouteCoords);
       },
       invalidate() {
-        setTimeout(() => map.resize(), 60);
+        setTimeout(() => {
+          map.resize();
+          if (lastRouteCoords?.length) paintRouteLine(lastRouteCoords);
+        }, 60);
       },
     };
 
